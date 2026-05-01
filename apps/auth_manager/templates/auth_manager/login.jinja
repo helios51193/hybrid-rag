@@ -1,0 +1,85 @@
+{% extends "auth_manager/auth_base.jinja" %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-base-200">
+
+  <div class="card bg-base-100 shadow-2xl" style="width: 500px">
+
+    <div class="card-body p-8 space-y-6">
+
+      <h3 class="text-center text-2xl font-semibold">
+        Login
+      </h3>
+
+      <form method="POST" novalidate class="space-y-4">
+        {% csrf_token %}
+
+        <!-- Email -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">
+              {{ login_form.email.label }}
+            </span>
+          </label>
+          {{ login_form.email }}
+        </div>
+
+        <!-- Password -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">
+              {{ login_form.password.label }}
+            </span>
+          </label>
+
+          <div class="join w-full">
+            {{ login_form.password }}
+            <button type="button" class="btn join-item btn-outline" onclick="togglePassword(this)">
+              Show
+            </button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary w-full text-base">
+          Login
+        </button>
+
+        <p class="text-center text-sm text-base-content/70">
+          Don't have an account?
+          <a href="{{ url('auth_manager:auth_signup') }}" class="link link-primary font-medium">
+            Sign up
+          </a>
+        </p>
+      </form>
+
+      {% if has_errors %}
+      <div class="space-y-2">
+        {% for err in errors %}
+        <div class="alert alert-error text-sm">
+          {{ err }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function togglePassword(btn) {
+    const input = document.getElementById("id_password");
+    if (!input) return;
+
+    if (input.type === "password") {
+      input.type = "text";
+      btn.textContent = "Hide";
+    } else {
+      input.type = "password";
+      btn.textContent = "Show";
+    }
+  }
+</script>
+{% endblock %}

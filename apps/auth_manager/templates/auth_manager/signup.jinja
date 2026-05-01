@@ -1,0 +1,107 @@
+{% extends "auth_manager/auth_base.jinja" %}
+
+{% block title %}Signup{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-base-200">
+
+  <div class="card bg-base-100 shadow-2xl" style="min-width: 500px;">
+    <div class="card-body p-8 space-y-6">
+
+      <h3 class="text-center text-2xl font-semibold">
+        Signup
+      </h3>
+
+      <form method="POST" novalidate class="space-y-4">
+        {% csrf_token %}
+
+        <!-- Email -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">Email*</span>
+          </label>
+          {{ signup_form.email }}
+        </div>
+
+        <!-- Password -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">Password*</span>
+          </label>
+
+          <div class="join w-full">
+            {{ signup_form.password1 }}
+            <button
+              type="button"
+              id="p1_button"
+              class="btn join-item btn-outline"
+              onclick="togglePassword()">
+              Show
+            </button>
+          </div>
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">Confirm Password*</span>
+          </label>
+
+          <div class="join w-full">
+            {{ signup_form.password2 }}
+            <button
+              type="button"
+              id="p2_button"
+              class="btn join-item btn-outline"
+              onclick="togglePassword()">
+              Show
+            </button>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <button class="btn btn-primary w-full text-base" type="submit">
+          Signup
+        </button>
+
+        <p class="text-center text-sm text-base-content/70">
+          Already have an account?
+          <a href="{{ url('auth_manager:auth_login') }}"
+             class="link link-primary font-medium">
+            Login
+          </a>
+        </p>
+      </form>
+
+      {% if has_errors %}
+      <div class="space-y-2">
+        {% for err in errors %}
+          <div class="alert alert-error text-sm">
+            {{ err }}
+          </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+function togglePassword() {
+  const p1 = document.getElementById("id_password1");
+  const p2 = document.getElementById("id_password2");
+  const b1 = document.getElementById("p1_button");
+  const b2 = document.getElementById("p2_button");
+
+  const isHidden = p1.type === "password";
+
+  p1.type = isHidden ? "text" : "password";
+  p2.type = isHidden ? "text" : "password";
+
+  b1.textContent = isHidden ? "Hide" : "Show";
+  b2.textContent = isHidden ? "Hide" : "Show";
+}
+</script>
+{% endblock %}
