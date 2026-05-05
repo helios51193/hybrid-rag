@@ -42,6 +42,35 @@ The system should ingest a codebase and answer natural-language questions with g
 - Edge de-duplication and self-loop avoidance
 - NetworkX `DiGraph` construction with node/edge metadata
 
+### Vector + Indexing (v1)
+
+- Embedding service supports configurable backends via Django settings:
+  - `deterministic` (default fallback for tests/dev)
+  - `sentence_transformers`
+  - `openai`
+- Chroma repository implemented for:
+  - collection connect/create
+  - chunk upsert with metadata
+  - top-k query with filtering
+  - project-level delete
+- Indexing orchestrator now runs:
+  - collect documents
+  - chunk documents
+  - embed chunks
+  - upsert vectors
+  - build graph
+  - return indexing stats/result payload
+
+### Graph Persistence (SQLite via Django ORM)
+
+- Added graph persistence models:
+  - `CodeNode`
+  - `CodeEdge`
+- Added DB-backed graph repository:
+  - save graph snapshot per `project_id`
+  - load graph back into `networkx.DiGraph`
+- Indexing flow supports automatic graph persistence when `graph_repo` is provided.
+
 ## Test Coverage Added
 
 - `apps/rag/tests/test_services_ingestion.py`
@@ -72,8 +101,8 @@ The system should ingest a codebase and answer natural-language questions with g
 
 ## Immediate Next Steps
 
-1. Finish and stabilize `graph_build.py` import parsing behavior.
-2. Implement `graph_query.py` for neighborhood/path retrieval.
-3. Add Chroma repository integration for vector upsert/search.
-4. Implement `hybrid_search.py` merge and weighted scoring.
-5. Start thin UI after service pipeline is stable end-to-end.
+1. Add tests for graph repository save/load behavior.
+2. Add indexing service integration test that verifies graph DB persistence.
+3. Implement `graph_query.py` (neighbors/hops expansion from persisted graph).
+4. Implement `hybrid_search.py` with vector + graph merge scoring.
+5. Start thin UI after retrieval pipeline is stable end-to-end.

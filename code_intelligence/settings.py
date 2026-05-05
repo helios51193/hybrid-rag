@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'apps.auth_manager',
+    'apps.rag',
     'tailwind',
     'theme'
 ]
@@ -173,3 +174,11 @@ LOG_DIR = BASE_DIR / "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
 LOGIN_URL = '/auth/login/'
+
+# RAG Embeddings
+# Supported backends:
+# - "deterministic" (default, test/dev safe fallback)
+# - "sentence_transformers" (local model)
+# - "openai" (remote API)
+RAG_EMBEDDING_BACKEND = os.getenv("RAG_EMBEDDING_BACKEND", "deterministic")
+RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-3-small")
