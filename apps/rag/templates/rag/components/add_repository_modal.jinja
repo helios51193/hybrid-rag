@@ -1,0 +1,80 @@
+{# apps/rag/templates/rag/components/add_repository_modal.jinja #}
+<dialog id="add_repo_modal" class="modal">
+  <div class="modal-box max-w-2xl">
+    <h3 class="font-semibold text-lg">Add Repository</h3>
+    <p class="text-sm text-base-content/70 mt-1">
+      Add from zip or local folder. GitHub URL can be added later.
+    </p>
+
+    <form class="mt-6 space-y-4" method="post" enctype="multipart/form-data" action="/rag/repositories/add/">
+      <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token if csrf_token is defined else '' }}" />
+
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Source Type</legend>
+        {{ repo_form.source_type|safe }}
+        {% if repo_form.source_type.errors %}
+          <p class="text-error text-sm">{{ repo_form.source_type.errors|join(', ') }}</p>
+        {% endif %}
+      </fieldset>
+
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend">Repository Name</legend>
+        {{ repo_form.name }}
+        {% if repo_form.name.errors %}
+          <p class="text-error text-sm">{{ repo_form.name.errors|join(', ') }}</p>
+        {% endif %}
+      </fieldset>
+
+      <div id="zip-field-wrap">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Zip File</legend>
+          {{ repo_form.zip_file|safe }}
+          {% if repo_form.zip_file.errors %}
+            <p class="text-error text-sm">{{ repo_form.zip_file.errors|join(', ') }}</p>
+          {% endif %}
+        </fieldset>
+      </div>
+
+      <div id="folder-field-wrap">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Folder Upload (webkit directory)</legend>
+          {{ repo_form.folder_files|safe }}
+          {% if repo_form.folder_files.errors %}
+            <p class="text-error text-sm">{{ repo_form.folder_files.errors|join(', ') }}</p>
+          {% endif %}
+        </fieldset>
+      </div>
+
+      <div class="modal-action">
+        <button type="button" class="btn" onclick="add_repo_modal.close()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add Repository</button>
+      </div>
+    </form>
+  </div>
+
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<script>
+  (function () {
+    function toggleSourceFields() {
+      const source = document.querySelector('select[name="source_type"]');
+      const zipWrap = document.getElementById("zip-field-wrap");
+      const folderWrap = document.getElementById("folder-field-wrap");
+      if (!source || !zipWrap || !folderWrap) return;
+
+      const isZip = source.value === "zip";
+      zipWrap.classList.toggle("hidden", !isZip);
+      folderWrap.classList.toggle("hidden", isZip);
+    }
+
+    document.addEventListener("change", function (e) {
+      if (e.target && e.target.name === "source_type") toggleSourceFields();
+    });
+
+    document.addEventListener("DOMContentLoaded", toggleSourceFields);
+    document.addEventListener("htmx:afterSwap", toggleSourceFields);
+  })();
+</script>

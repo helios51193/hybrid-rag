@@ -182,3 +182,26 @@ LOGIN_URL = '/auth/login/'
 # - "openai" (remote API)
 RAG_EMBEDDING_BACKEND = os.getenv("RAG_EMBEDDING_BACKEND", "deterministic")
 RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-3-small")
+
+# RAG Vector DB (Qdrant)
+RAG_VECTOR_COLLECTION = os.getenv("RAG_VECTOR_COLLECTION", "rag_chunks")
+QDRANT_URL = os.getenv("QDRANT_URL", "http://127.0.0.1:6333")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+QDRANT_TIMEOUT = int(os.getenv("QDRANT_TIMEOUT", "30"))
+
+# Allow larger folder uploads (webkitdirectory) to reach app-level validation.
+DATA_UPLOAD_MAX_NUMBER_FILES = int(os.getenv("DATA_UPLOAD_MAX_NUMBER_FILES", "20000"))
+# 10 MB request/upload cap
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("DATA_UPLOAD_MAX_MEMORY_SIZE", str(10 * 1024 * 1024)))
+FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("FILE_UPLOAD_MAX_MEMORY_SIZE", str(10 * 1024 * 1024)))
+
+# Celery
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 60 * 60  # 1 hour
+CELERY_TASK_SOFT_TIME_LIMIT = 50 * 60
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE

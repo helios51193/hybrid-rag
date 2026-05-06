@@ -1,0 +1,35 @@
+{# apps/rag/templates/rag/components/repository_actions.jinja #}
+<div class="join">
+  <button
+    class="btn btn-sm btn-primary join-item"
+    {% if repo.status == "processing" %}disabled{% endif %}
+    hx-post="/rag/repositories/{{ repo.id }}/process/"
+    hx-target="#repo-row-{{ repo.id }}"
+    hx-swap="outerHTML"
+  >
+    {% if repo.status == "processing" %}
+      <span class="loading loading-spinner loading-xs"></span>
+      Processing
+    {% else %}
+      Process
+    {% endif %}
+  </button>
+
+  <a
+    href="/rag/query/?repo_id={{ repo.id }}"
+    class="btn btn-sm btn-accent join-item {% if repo.status != 'ready' %}btn-disabled{% endif %}"
+    {% if repo.status != "ready" %}aria-disabled="true"{% endif %}
+  >
+    Query
+  </a>
+
+  <button
+    class="btn btn-sm btn-error btn-outline join-item"
+    hx-delete="/rag/repositories/{{ repo.id }}/"
+    hx-confirm="Delete this repository?"
+    hx-target="#repo-row-{{ repo.id }}"
+    hx-swap="delete"
+  >
+    Delete
+  </button>
+</div>

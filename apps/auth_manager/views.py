@@ -9,7 +9,7 @@ from django.contrib.auth import authenticate, login, logout
 
 
 
-@redirect_authenticated(to='document_manager:dashboard')
+@redirect_authenticated(to='rag:dashboard')
 def user_login(request):
 
     form = LoginForm()
@@ -30,7 +30,7 @@ def user_login(request):
                 if user is not None:
                     print("Authenticated")
                     login(request,user)
-                    return redirect('document_manager:dashboard')
+                    return redirect('rag:dashboard')
                 else:
                     context['has_errors'] = True
                     context['errors'] = ['Invalid email and/or password']

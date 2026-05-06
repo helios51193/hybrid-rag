@@ -1,0 +1,17 @@
+{% extends "rag/base.jinja" %}
+
+{% block title %}Query | Code Intelligence{% endblock %}
+
+{% block content %}
+<div class="card bg-base-100 shadow-sm border border-base-300">
+  <div class="card-body">
+    <h1 class="card-title">Query Repository</h1>
+    <p class="text-sm text-base-content/70">
+      Selected project: {{ selected_project_id if selected_project_id else "None" }}
+    </p>
+    <div class="alert alert-info mt-4">
+      <span>Query UI will be wired after retrieval endpoints are ready.</span>
+    </div>
+  </div>
+</div>
+{% endblock %}

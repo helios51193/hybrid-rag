@@ -1,0 +1,41 @@
+{# apps/rag/templates/rag/base.jinja #}
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="csrf-token" content="{{ csrf_token if csrf_token is defined else '' }}" />
+  <title>{% block title %}Code Intelligence{% endblock %}</title>
+
+  {# Tailwind + DaisyUI compiled output from your shared root static setup #}
+  <link rel="stylesheet" href="{{ static('css/dist/styles.css') }}" />
+
+  {# HTMX #}
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script>
+    document.addEventListener("htmx:configRequest", function (event) {
+      var tokenMeta = document.querySelector('meta[name="csrf-token"]');
+      if (!tokenMeta) return;
+      var token = tokenMeta.getAttribute("content");
+      if (!token) return;
+      event.detail.headers["X-CSRFToken"] = token;
+    });
+  </script>
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  <div class="navbar bg-base-100 border-b border-base-300 px-4 lg:px-8">
+    <div class="flex-1">
+      <a href="/" class="btn btn-ghost text-lg">Code Intelligence</a>
+    </div>
+    <div class="flex-none gap-2">
+      {% block nav_actions %}{% endblock %}
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto w-full px-4 lg:px-8 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

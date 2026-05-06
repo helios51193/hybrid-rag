@@ -1,0 +1,13 @@
+{# apps/rag/templates/rag/components/repository_status_badge.jinja #}
+{% if repo.status == "ready" %}
+  <span class="badge badge-success">Ready</span>
+{% elif repo.status == "processing" %}
+  <span class="badge badge-warning gap-1">
+    <span class="loading loading-spinner loading-xs"></span>
+    Processing
+  </span>
+{% elif repo.status == "failed" %}
+  <span class="badge badge-error">Failed</span>
+{% else %}
+  <span class="badge badge-ghost">Not Processed</span>
+{% endif %}

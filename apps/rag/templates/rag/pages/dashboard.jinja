@@ -1,0 +1,32 @@
+{# apps/rag/templates/rag/pages/dashboard.jinja #}
+{% extends "rag/base.jinja" %}
+
+{% block title %}Repositories | Code Intelligence{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold">Repositories</h1>
+      <p class="text-sm text-base-content/70">Add, process, and query code repositories.</p>
+    </div>
+    <button class="btn btn-primary" onclick="add_repo_modal.showModal()">
+      Add Repository
+    </button>
+  </div>
+
+  <div id="repo-table-container">
+    {% include "rag/components/repository_table.jinja" %}
+  </div>
+</div>
+
+{% include "rag/components/add_repository_modal.jinja" %}
+{% endblock %}
+
+{% block scripts %}
+{% if repo_form.errors %}
+<script>
+  add_repo_modal.showModal();
+</script>
+{% endif %}
+{% endblock %}

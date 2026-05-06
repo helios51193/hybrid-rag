@@ -4,7 +4,7 @@
 
 Build a hybrid RAG system for code intelligence using:
 
-- ChromaDB for vector retrieval
+- Qdrant for vector retrieval
 - NetworkX for graph retrieval
 - Django as the application framework
 
@@ -48,9 +48,9 @@ The system should ingest a codebase and answer natural-language questions with g
   - `deterministic` (default fallback for tests/dev)
   - `sentence_transformers`
   - `openai`
-- Chroma repository implemented for:
+- Qdrant repository implemented for:
   - collection connect/create
-  - chunk upsert with metadata
+  - chunk upsert with payload metadata
   - top-k query with filtering
   - project-level delete
 - Indexing orchestrator now runs:
@@ -60,6 +60,7 @@ The system should ingest a codebase and answer natural-language questions with g
   - upsert vectors
   - build graph
   - return indexing stats/result payload
+- Celery indexing worker now uses Qdrant repository + graph repository.
 
 ### Graph Persistence (SQLite via Django ORM)
 
@@ -70,6 +71,29 @@ The system should ingest a codebase and answer natural-language questions with g
   - save graph snapshot per `project_id`
   - load graph back into `networkx.DiGraph`
 - Indexing flow supports automatic graph persistence when `graph_repo` is provided.
+
+### Dashboard UI (v1)
+
+- Added dashboard page and reusable Jinja components under:
+  - `templates/rag/pages/`
+  - `templates/rag/components/`
+- Added add-repository modal flow with Django form validation.
+- Source input supports **either**:
+  - zip upload, or
+  - folder upload (`webkitdirectory`, multi-file)
+- Added client-side field toggle so only selected source input is shown.
+- Added CSRF header hook for HTMX actions.
+- Switched DaisyUI theme to dark (`night`).
+
+### Upload Safety Limits
+
+- Added request/file size and count guardrails:
+  - `DATA_UPLOAD_MAX_NUMBER_FILES`
+  - `DATA_UPLOAD_MAX_MEMORY_SIZE`
+  - `FILE_UPLOAD_MAX_MEMORY_SIZE`
+- Added form-level friendly validation:
+  - max folder file count
+  - max total upload size (10 MB)
 
 ## Test Coverage Added
 
@@ -101,8 +125,8 @@ The system should ingest a codebase and answer natural-language questions with g
 
 ## Immediate Next Steps
 
-1. Add tests for graph repository save/load behavior.
-2. Add indexing service integration test that verifies graph DB persistence.
+1. Add tests for Qdrant repository query/filter/delete behavior.
+2. Add tests for graph repository save/load behavior.
 3. Implement `graph_query.py` (neighbors/hops expansion from persisted graph).
 4. Implement `hybrid_search.py` with vector + graph merge scoring.
-5. Start thin UI after retrieval pipeline is stable end-to-end.
+5. Build query page interactions and citation rendering with HTMX.

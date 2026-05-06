@@ -3,3 +3,5 @@ env
 __pycache__
 requirements_base.txt
 db.sqlite3
+.chroma
+var

@@ -1,0 +1,2 @@
+# run celery locally, make sure redis is available 
+celery -A code_intelligence worker -l info -P solo

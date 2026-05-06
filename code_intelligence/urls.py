@@ -24,5 +24,6 @@ def root_redirect(request):
 urlpatterns = [
     path("", root_redirect),
     path('auth/', include('apps.auth_manager.urls')),
+    path("rag/", include("apps.rag.urls")),
     path('admin/', admin.site.urls),
 ]

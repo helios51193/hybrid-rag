@@ -1,0 +1,9 @@
+<tr id="repo-row-{{ repo.id }}">
+  <td class="font-medium">{{ repo.name }}</td>
+  <td class="uppercase text-xs">{{ repo.source_type }}</td>
+  <td>{% include "rag/components/repository_status_badge.jinja" %}</td>
+  <td>{{ repo.updated_at }}</td>
+  <td class="text-right">
+    {% include "rag/components/repository_actions.jinja" %}
+  </td>
+</tr>

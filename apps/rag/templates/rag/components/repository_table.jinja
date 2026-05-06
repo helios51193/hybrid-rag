@@ -1,0 +1,31 @@
+{# apps/rag/templates/rag/components/repository_table.jinja #}
+<div class="card bg-base-100 shadow-sm border border-base-300">
+  <div class="card-body p-0">
+    <div class="overflow-x-auto">
+      <table class="table table-zebra">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Source Type</th>
+            <th>Status</th>
+            <th>Last Updated</th>
+            <th class="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="repository-table-body">
+          {% if repositories %}
+            {% for repo in repositories %}
+              {% include "rag/components/repository_row.jinja" %}
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="5">
+                {% include "rag/components/empty_state.jinja" %}
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

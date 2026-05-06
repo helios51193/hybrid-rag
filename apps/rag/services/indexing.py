@@ -5,8 +5,8 @@ from time import perf_counter
 
 import networkx as nx
 
-from apps.rag.repositories.chroma_repository import ChromaRepository
 from apps.rag.repositories.graph_repository import GraphRepository
+from apps.rag.repositories.qdrant_repository import QdrantRepository
 from apps.rag.services.chunking import chunk_documents
 from apps.rag.services.embeddings import embed_chunks
 from apps.rag.services.graph_build import GraphEdge, build_graph, extract_file_relations
@@ -36,12 +36,17 @@ def run_indexing(
     *,
     project_id: str,
     source_dir: str,
-    chroma_repo: ChromaRepository,
+    vector_repo: QdrantRepository | None = None,
+    chroma_repo: QdrantRepository | None = None,
     chunk_size_lines: int = 120,
     overlap_lines: int = 20,
     graph_repo: GraphRepository | None = None,
 ) -> IndexingResult:
     started = perf_counter()
+    if vector_repo is None:
+        vector_repo = chroma_repo
+    if vector_repo is None:
+        raise ValueError("A vector repository instance is required.")
 
     documents = collect_documents(project_id=project_id, source_dir=source_dir)
 
@@ -53,8 +58,8 @@ def run_indexing(
 
     embedded_chunks = embed_chunks(chunks)
 
-    chroma_repo.connect()
-    vectors_upserted = chroma_repo.upsert_chunks(embedded_chunks)
+    vector_repo.connect()
+    vectors_upserted = vector_repo.upsert_chunks(embedded_chunks)
 
     edges = extract_file_relations(documents)
     graph = build_graph(documents, edges)
