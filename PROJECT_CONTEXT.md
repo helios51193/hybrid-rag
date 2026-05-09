@@ -39,6 +39,7 @@ The system should ingest a codebase and answer natural-language questions with g
 - File-level directed graph model
 - Python import-based relation extraction (`imports`)
 - Module-to-file resolution from indexed documents
+- Relative import resolution (`from .x import y`, `from ..x import y`)
 - Edge de-duplication and self-loop avoidance
 - NetworkX `DiGraph` construction with node/edge metadata
 
@@ -67,6 +68,7 @@ The system should ingest a codebase and answer natural-language questions with g
 - Added graph persistence models:
   - `CodeNode`
   - `CodeEdge`
+- Added `IndexingJob` foreign keys on `CodeNode` and `CodeEdge` with cascade delete.
 - Added DB-backed graph repository:
   - save graph snapshot per `project_id`
   - load graph back into `networkx.DiGraph`
@@ -78,12 +80,17 @@ The system should ingest a codebase and answer natural-language questions with g
   - `templates/rag/pages/`
   - `templates/rag/components/`
 - Added add-repository modal flow with Django form validation.
+- Add-repository uses HTMX form submit and returns modal-only partial.
+- Dashboard table refreshes via HTMX trigger (`repoListChanged`) instead of full page reload.
 - Source input supports **either**:
   - zip upload, or
   - folder upload (`webkitdirectory`, multi-file)
 - Added client-side field toggle so only selected source input is shown.
 - Added CSRF header hook for HTMX actions.
 - Switched DaisyUI theme to dark (`night`).
+- Added processing row polling component with progress bar.
+- Added custom DaisyUI delete-confirmation modal (replaced browser confirm).
+- Process now reuses the same `IndexingJob` row instead of creating a new one.
 
 ### Upload Safety Limits
 
@@ -93,7 +100,16 @@ The system should ingest a codebase and answer natural-language questions with g
   - `FILE_UPLOAD_MAX_MEMORY_SIZE`
 - Added form-level friendly validation:
   - max folder file count
-  - max total upload size (10 MB)
+  - max total upload size (15 MB)
+
+### Deletion Integrity
+
+- Repository delete now removes:
+  - all `IndexingJob` rows for the project
+  - persisted graph rows (`CodeNode`/`CodeEdge`)
+  - project vectors in Qdrant
+  - uploaded source files under `var/uploads/repositories/<project_id>`
+- Delete response triggers dashboard table refresh via HTMX event.
 
 ## Test Coverage Added
 

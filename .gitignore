@@ -5,3 +5,4 @@ requirements_base.txt
 db.sqlite3
 .chroma
 var
+*.sqlite3

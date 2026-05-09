@@ -2,10 +2,7 @@
 {% if repo.status == "ready" %}
   <span class="badge badge-success">Ready</span>
 {% elif repo.status == "processing" %}
-  <span class="badge badge-warning gap-1">
-    <span class="loading loading-spinner loading-xs"></span>
-    Processing
-  </span>
+  {% include "rag/components/repository_progress.jinja" %}
 {% elif repo.status == "failed" %}
   <span class="badge badge-error">Failed</span>
 {% else %}

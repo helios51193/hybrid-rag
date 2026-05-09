@@ -49,7 +49,54 @@ def _build_python_module_index(documents: list[SourceDocument]) -> dict[str, str
     return index
 
 
-def _extract_python_import_modules(content: str) -> set[str]:
+def _module_parts_from_source_path(source_rel: str) -> list[str]:
+    p = PurePosixPath(source_rel)
+    parts = list(p.with_suffix("").parts)
+    if not parts:
+        return []
+    return parts
+
+
+def _resolve_relative_base_module(source_rel: str, relative_base: str) -> str | None:
+    """
+    Resolve relative import base against current source file.
+    Examples:
+      source=pkg/a.py, relative_base='.'      -> pkg
+      source=pkg/a.py, relative_base='..x'    -> x (or parent.x when deeper)
+      source=pkg/sub/a.py, relative_base='.b' -> pkg.sub.b
+    """
+    if not relative_base.startswith("."):
+        return relative_base
+
+    module_parts = _module_parts_from_source_path(source_rel)
+    if not module_parts:
+        return None
+
+    # Current package parts (drop module leaf)
+    package_parts = module_parts[:-1]
+
+    dots = 0
+    for ch in relative_base:
+        if ch == ".":
+            dots += 1
+        else:
+            break
+    remainder = relative_base[dots:]
+    remainder_parts = [part for part in remainder.split(".") if part]
+
+    # from .x import ...  => stay in same package
+    # from ..x import ... => one level up
+    up_levels = max(0, dots - 1)
+    if up_levels > len(package_parts):
+        return None
+    anchor_parts = package_parts[: len(package_parts) - up_levels]
+    resolved_parts = anchor_parts + remainder_parts
+    if not resolved_parts:
+        return None
+    return ".".join(resolved_parts)
+
+
+def _extract_python_import_modules(content: str, source_rel: str) -> set[str]:
     modules: set[str] = set()
     for raw_line in content.splitlines():
         line = raw_line.strip()
@@ -69,13 +116,19 @@ def _extract_python_import_modules(content: str) -> set[str]:
         if line.startswith("from ") and " import " in line:
             left, right = line[len("from ") :].split(" import ", 1)
             base = left.strip()
-            if base and not base.startswith("."):  # ignore relative imports in v1
-                modules.add(base)  # fallback to package/__init__.py if needed
-                for imported in right.split(","):
-                    name = imported.strip().split(" as ")[0].strip()
-                    if not name or name == "*":
-                        continue
-                    modules.add(f"{base}.{name}")
+            if not base:
+                continue
+
+            resolved_base = _resolve_relative_base_module(source_rel=source_rel, relative_base=base)
+            if not resolved_base:
+                continue
+
+            modules.add(resolved_base)  # fallback to package/__init__.py if needed
+            for imported in right.split(","):
+                name = imported.strip().split(" as ")[0].strip()
+                if not name or name == "*":
+                    continue
+                modules.add(f"{resolved_base}.{name}")
 
     return modules
 
@@ -104,7 +157,7 @@ def extract_file_relations(documents: list[SourceDocument]) -> list[GraphEdge]:
             continue
 
         source_rel = doc.relative_path.replace("\\", "/")
-        imported_modules = _extract_python_import_modules(doc.content)
+        imported_modules = _extract_python_import_modules(doc.content, source_rel=source_rel)
 
         for module in imported_modules:
             target_rel = _resolve_module_to_file(module, module_index)
@@ -117,6 +170,7 @@ def extract_file_relations(documents: list[SourceDocument]) -> list[GraphEdge]:
             if key in seen:
                 continue
             seen.add(key)
+            print("adding edge")
             edges.append(GraphEdge(source=source_rel, target=target_rel, relation="imports"))
 
     return edges

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha1
 from typing import Any
 
 from qdrant_client import QdrantClient
@@ -95,6 +96,16 @@ class QdrantRepository:
             "content": c.content,
         }
 
+    @staticmethod
+    def _numeric_point_id(chunk_id: str) -> int:
+        """
+        Qdrant deployment here expects numeric point IDs.
+        Use a deterministic 63-bit integer derived from chunk_id.
+        """
+        digest = sha1(chunk_id.encode("utf-8")).digest()
+        # Positive signed 63-bit range
+        return int.from_bytes(digest[:8], byteorder="big", signed=False) & ((1 << 63) - 1)
+
     def upsert_chunks(self, embedded_chunks: list[EmbeddedChunk]) -> int:
         if not embedded_chunks:
             return 0
@@ -109,7 +120,7 @@ class QdrantRepository:
         for item in embedded_chunks:
             points.append(
                 qm.PointStruct(
-                    id=item.chunk.chunk_id,
+                    id=self._numeric_point_id(item.chunk.chunk_id),
                     vector=item.vector,
                     payload=self._payload_from_chunk(item),
                 )

@@ -3,7 +3,7 @@
   <button
     class="btn btn-sm btn-primary join-item"
     {% if repo.status == "processing" %}disabled{% endif %}
-    hx-post="/rag/repositories/{{ repo.id }}/process/"
+    hx-post="{{ url('rag:process_repository', kwargs={'repo_id': repo.id}) }}"
     hx-target="#repo-row-{{ repo.id }}"
     hx-swap="outerHTML"
   >
@@ -16,7 +16,7 @@
   </button>
 
   <a
-    href="/rag/query/?repo_id={{ repo.id }}"
+    href="{{ url('rag:query_page') }}?repo_id={{ repo.id }}"
     class="btn btn-sm btn-accent join-item {% if repo.status != 'ready' %}btn-disabled{% endif %}"
     {% if repo.status != "ready" %}aria-disabled="true"{% endif %}
   >
@@ -25,10 +25,11 @@
 
   <button
     class="btn btn-sm btn-error btn-outline join-item"
-    hx-delete="/rag/repositories/{{ repo.id }}/"
-    hx-confirm="Delete this repository?"
-    hx-target="#repo-row-{{ repo.id }}"
-    hx-swap="delete"
+    {% if repo.status == "processing" %}disabled{% endif %}
+    type="button"
+    data-repo-id="{{ repo.id }}"
+    data-repo-name="{{ repo.name }}"
+    onclick="openDeleteRepositoryModal(this)"
   >
     Delete
   </button>

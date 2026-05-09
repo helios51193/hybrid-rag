@@ -15,12 +15,20 @@
     </button>
   </div>
 
-  <div id="repo-table-container">
+  <div
+    id="repo-table-container"
+    hx-get="{{ url('rag:repository_table') }}"
+    hx-trigger="load, repoListChanged from:body"
+    hx-swap="innerHTML"
+  >
     {% include "rag/components/repository_table.jinja" %}
   </div>
 </div>
 
-{% include "rag/components/add_repository_modal.jinja" %}
+<div id="add-repository-modal-container">
+  {% include "rag/components/add_repository_modal.jinja" %}
+</div>
+{% include "rag/components/delete_repository_modal.jinja" %}
 {% endblock %}
 
 {% block scripts %}
@@ -29,4 +37,32 @@
   add_repo_modal.showModal();
 </script>
 {% endif %}
+<script>
+  document.body.addEventListener("repoAdded", function () {
+    if (window.add_repo_modal) {
+      add_repo_modal.close();
+    }
+  });
+
+  document.body.addEventListener("repoDeleted", function () {
+    if (window.delete_repo_modal) {
+      delete_repo_modal.close();
+    }
+  });
+
+  function openDeleteRepositoryModal(btnEl) {
+    const repoId = btnEl ? btnEl.getAttribute("data-repo-id") : "";
+    const repoName = btnEl ? btnEl.getAttribute("data-repo-name") : "";
+    const confirmBtn = document.getElementById("confirm-delete-repo-btn");
+    const repoNameEl = document.getElementById("delete-repo-name");
+    if (!confirmBtn || !repoNameEl || !window.delete_repo_modal || !repoId) return;
+
+    repoNameEl.textContent = repoName;
+    confirmBtn.setAttribute("hx-delete", "{{ url('rag:delete_repository', kwargs={'repo_id': 0}) }}".replace("/0/", "/" + repoId + "/"));
+    if (window.htmx) {
+      htmx.process(confirmBtn);
+    }
+    delete_repo_modal.showModal();
+  }
+</script>
 {% endblock %}

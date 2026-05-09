@@ -41,6 +41,7 @@ def run_indexing(
     chunk_size_lines: int = 120,
     overlap_lines: int = 20,
     graph_repo: GraphRepository | None = None,
+    indexing_job_id: int | None = None,
 ) -> IndexingResult:
     started = perf_counter()
     if vector_repo is None:
@@ -59,12 +60,18 @@ def run_indexing(
     embedded_chunks = embed_chunks(chunks)
 
     vector_repo.connect()
+    # Clear old vectors for this project so re-indexing reflects current source only.
+    vector_repo.delete_project(project_id=project_id)
     vectors_upserted = vector_repo.upsert_chunks(embedded_chunks)
 
     edges = extract_file_relations(documents)
     graph = build_graph(documents, edges)
     if graph_repo is not None:
-        graph_repo.save_graph(project_id=project_id, graph=graph)
+        graph_repo.save_graph(
+            project_id=project_id,
+            graph=graph,
+            indexing_job_id=indexing_job_id,
+        )
 
     stats = IndexingStats(
         project_id=project_id,

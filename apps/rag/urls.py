@@ -6,6 +6,7 @@ app_name = "rag"
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
+    path("repositories/table/", views.repository_table, name="repository_table"),
     path("repositories/add/", views.add_repository, name="add_repository"),
     path("repositories/<int:repo_id>/process/", views.process_repository, name="process_repository"),
     path("repositories/<int:repo_id>/", views.delete_repository, name="delete_repository"),

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import networkx as nx
 from django.db import transaction
 
-from apps.rag.models import CodeEdge, CodeNode
+from apps.rag.models import CodeEdge, CodeNode, IndexingJob
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,15 +16,25 @@ class GraphPersistStats:
 
 class GraphRepository:
     @transaction.atomic
-    def save_graph(self, *, project_id: str, graph: nx.DiGraph) -> GraphPersistStats:
+    def save_graph(
+        self,
+        *,
+        project_id: str,
+        graph: nx.DiGraph,
+        indexing_job_id: int | None = None,
+    ) -> GraphPersistStats:
         # Replace snapshot for a project to keep the state consistent with latest indexing run.
         CodeEdge.objects.filter(project_id=project_id).delete()
         CodeNode.objects.filter(project_id=project_id).delete()
+        indexing_job = None
+        if indexing_job_id is not None:
+            indexing_job = IndexingJob.objects.filter(id=indexing_job_id).first()
 
         node_rows: list[CodeNode] = []
         for node_id, attrs in graph.nodes(data=True):
             node_rows.append(
                 CodeNode(
+                    indexing_job=indexing_job,
                     project_id=project_id,
                     node_id=str(node_id),
                     node_type=str(attrs.get("node_type", "file")),
@@ -42,6 +52,7 @@ class GraphRepository:
             weight = float(attrs.get("weight", 1.0))
             edge_rows.append(
                 CodeEdge(
+                    indexing_job=indexing_job,
                     project_id=project_id,
                     source_node_id=str(source),
                     target_node_id=str(target),

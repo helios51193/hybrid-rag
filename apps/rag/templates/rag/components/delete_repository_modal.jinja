@@ -1,0 +1,29 @@
+<dialog id="delete_repo_modal" class="modal">
+  <div class="modal-box">
+    <h3 class="font-semibold text-lg">Delete Repository</h3>
+    <p class="py-2 text-sm text-base-content/80">
+      This will remove indexing jobs, graph nodes/edges, uploaded source files, and vector data.
+    </p>
+    <p class="text-sm">
+      Repository:
+      <span id="delete-repo-name" class="font-semibold"></span>
+    </p>
+
+    <div class="modal-action">
+      <button type="button" class="btn" onclick="delete_repo_modal.close()">Cancel</button>
+      <button
+        id="confirm-delete-repo-btn"
+        type="button"
+        class="btn btn-error"
+        hx-delete=""
+        hx-target="#repo-table-container"
+        hx-swap="none"
+      >
+        Delete
+      </button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>

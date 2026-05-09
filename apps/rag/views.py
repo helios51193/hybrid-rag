@@ -11,7 +11,8 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from apps.rag.forms import RepositoryInputForm
-from apps.rag.models import IndexingJob
+from apps.rag.models import CodeEdge, CodeNode, IndexingJob
+from apps.rag.repositories.qdrant_repository import QdrantRepository
 
 try:
     from apps.rag.tasks.indexing_tasks import run_indexing_job
@@ -82,12 +83,22 @@ def _latest_repository_rows() -> list[dict]:
                 "project_id": job.project_id,
                 "name": name,
                 "source_type": source_type,
-                "status": job.status.lower(),  # matches template badges
+                "status": _ui_status_from_job_status(job.status),
                 "updated_at": job.queued_at,
                 "source_dir": job.source_dir,
             }
         )
     return rows
+
+
+def _ui_status_from_job_status(job_status: str) -> str:
+    mapping = {
+        IndexingJob.Status.PENDING: "not_processed",
+        IndexingJob.Status.RUNNING: "processing",
+        IndexingJob.Status.DONE: "ready",
+        IndexingJob.Status.FAILED: "failed",
+    }
+    return mapping.get(job_status, "not_processed")
 
 
 @require_GET
@@ -99,15 +110,23 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     return render(request, "rag/pages/dashboard.jinja", context)
 
 
+@require_GET
+def repository_table(request: HttpRequest) -> HttpResponse:
+    context = {"repositories": _latest_repository_rows()}
+    return render(request, "rag/components/repository_table.jinja", context)
+
+
 @require_POST
 def add_repository(request: HttpRequest) -> HttpResponse:
     form = RepositoryInputForm(request.POST, request.FILES)
     if not form.is_valid():
-        context = {
-            "repositories": _latest_repository_rows(),
-            "repo_form": form,
-        }
-        return render(request, "rag/pages/dashboard.jinja", context, status=400)
+        response = render(
+            request,
+            "rag/components/add_repository_modal.jinja",
+            {"repo_form": form},
+            status=400,
+        )
+        return response
 
     name = form.cleaned_data["name"].strip()
     source_type = form.cleaned_data["source_type"]
@@ -127,42 +146,50 @@ def add_repository(request: HttpRequest) -> HttpResponse:
         },
     )
 
-    context = {
-        "repositories": _latest_repository_rows(),
-        "repo_form": RepositoryInputForm(),
-    }
-    return render(request, "rag/pages/dashboard.jinja", context)
+    response = render(
+        request,
+        "rag/components/add_repository_modal.jinja",
+        {"repo_form": RepositoryInputForm()},
+    )
+    response["HX-Trigger"] = '{"repoListChanged": true, "repoAdded": true}'
+    return response
 
 
 @require_POST
 def process_repository(request: HttpRequest, repo_id: int) -> HttpResponse:
     """
-    Creates a new indexing job for the same project/source and triggers Celery if available.
+    Reuses the same indexing job row and triggers Celery if available.
     """
-    latest_for_repo = get_object_or_404(IndexingJob, id=repo_id)
+    job = get_object_or_404(IndexingJob, id=repo_id)
 
-    new_job = IndexingJob.objects.create(
-        project_id=latest_for_repo.project_id,
-        source_dir=latest_for_repo.source_dir,
-        status=IndexingJob.Status.PENDING,
-        metadata=latest_for_repo.metadata or {},
-    )
+    # Reset job fields for reprocessing in place.
+    job.status = IndexingJob.Status.PENDING
+    job.task_id = ""
+    job.started_at = None
+    job.finished_at = None
+    job.documents_collected = 0
+    job.chunks_created = 0
+    job.vectors_upserted = 0
+    job.graph_nodes = 0
+    job.graph_edges = 0
+    job.duration_seconds = 0.0
+    job.error_message = ""
 
     if run_indexing_job is not None:
-        task = run_indexing_job.delay(new_job.id)
-        new_job.task_id = task.id
-        new_job.status = IndexingJob.Status.RUNNING
-        new_job.save(update_fields=["task_id", "status"])
+        task = run_indexing_job.delay(job.id)
+        job.task_id = task.id
+        job.status = IndexingJob.Status.RUNNING
+    job.save()
 
     # Rebuild one row payload for HTMX row replacement
     row = {
-        "id": new_job.id,
-        "project_id": new_job.project_id,
-        "name": (new_job.metadata or {}).get("name", new_job.project_id),
-        "source_type": (new_job.metadata or {}).get("source_type", "folder"),
-        "status": new_job.status.lower(),
-        "updated_at": new_job.queued_at,
-        "source_dir": new_job.source_dir,
+        "id": job.id,
+        "project_id": job.project_id,
+        "name": (job.metadata or {}).get("name", job.project_id),
+        "source_type": (job.metadata or {}).get("source_type", "folder"),
+        "status": _ui_status_from_job_status(job.status),
+        "updated_at": job.queued_at,
+        "source_dir": job.source_dir,
     }
     return render(request, "rag/components/repository_row.jinja", {"repo": row})
 
@@ -170,11 +197,39 @@ def process_repository(request: HttpRequest, repo_id: int) -> HttpResponse:
 @require_http_methods(["DELETE"])
 def delete_repository(request: HttpRequest, repo_id: int) -> HttpResponse:
     """
-    Deletes all jobs for the selected project_id so the dashboard row disappears.
+    Deletes project data across jobs, graph tables, vector DB, and uploaded source files.
     """
     job = get_object_or_404(IndexingJob, id=repo_id)
-    IndexingJob.objects.filter(project_id=job.project_id).delete()
-    return HttpResponse(status=204)
+    project_id = job.project_id
+
+    # 1) Delete vectors in Qdrant for this project.
+    vector_repo = QdrantRepository(
+        collection_name=getattr(settings, "RAG_VECTOR_COLLECTION", "rag_chunks"),
+        url=getattr(settings, "QDRANT_URL", "http://127.0.0.1:6333"),
+        api_key=getattr(settings, "QDRANT_API_KEY", None),
+        timeout=getattr(settings, "QDRANT_TIMEOUT", 30),
+    )
+    try:
+        vector_repo.connect()
+        vector_repo.delete_project(project_id=project_id)
+    finally:
+        vector_repo.close()
+
+    # 2) Delete persisted graph rows.
+    CodeEdge.objects.filter(project_id=project_id).delete()
+    CodeNode.objects.filter(project_id=project_id).delete()
+
+    # 3) Delete uploaded source directory.
+    project_upload_dir = _uploads_root() / project_id
+    if project_upload_dir.exists():
+        shutil.rmtree(project_upload_dir, ignore_errors=True)
+
+    # 4) Delete indexing jobs for this project.
+    IndexingJob.objects.filter(project_id=project_id).delete()
+
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = '{"repoListChanged": true, "repoDeleted": true}'
+    return response
 
 
 @require_GET
@@ -202,7 +257,7 @@ def repository_status_row(request: HttpRequest, repo_id: int) -> HttpResponse:
         "project_id": job.project_id,
         "name": (job.metadata or {}).get("name", job.project_id),
         "source_type": (job.metadata or {}).get("source_type", "folder"),
-        "status": job.status.lower(),
+        "status": _ui_status_from_job_status(job.status),
         "updated_at": job.queued_at,
         "source_dir": job.source_dir,
     }

@@ -6,7 +6,14 @@
       Add from zip or local folder. GitHub URL can be added later.
     </p>
 
-    <form class="mt-6 space-y-4" method="post" enctype="multipart/form-data" action="/rag/repositories/add/">
+    <form
+      class="mt-6 space-y-4"
+      method="post"
+      enctype="multipart/form-data"
+      hx-post="{{ url('rag:add_repository') }}"
+      hx-target="#add-repository-modal-container"
+      hx-swap="innerHTML"
+    >
       <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token if csrf_token is defined else '' }}" />
 
       <fieldset class="fieldset">
@@ -76,5 +83,10 @@
 
     document.addEventListener("DOMContentLoaded", toggleSourceFields);
     document.addEventListener("htmx:afterSwap", toggleSourceFields);
+    {% if repo_form.errors %}
+    if (window.add_repo_modal) {
+      add_repo_modal.showModal();
+    }
+    {% endif %}
   })();
 </script>

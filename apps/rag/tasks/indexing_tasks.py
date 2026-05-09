@@ -30,6 +30,7 @@ def run_indexing_job(self, job_id: int) -> None:
             source_dir=job.source_dir,
             vector_repo=vector_repo,
             graph_repo=graph_repo,
+            indexing_job_id=job.id,
         )
 
         stats = result.stats

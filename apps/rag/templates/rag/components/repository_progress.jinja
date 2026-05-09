@@ -1,0 +1,13 @@
+<div
+  hx-get="{{ url('rag:repository_status_row', kwargs={'repo_id': repo.id}) }}"
+  hx-trigger="every 3s"
+  hx-target="#repo-row-{{ repo.id }}"
+  hx-swap="outerHTML"
+  class="w-full max-w-xs"
+>
+  <div class="flex items-center gap-2 mb-1">
+    <span class="loading loading-spinner loading-xs"></span>
+    <span class="text-xs text-base-content/80">Processing...</span>
+  </div>
+  <progress class="progress progress-warning w-full"></progress>
+</div>

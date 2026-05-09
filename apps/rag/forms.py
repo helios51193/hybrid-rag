@@ -39,7 +39,7 @@ class RepositoryInputForm(forms.Form):
         ),
     )
     max_folder_files = 5000
-    max_total_upload_bytes = 10 * 1024 * 1024  # 10 MB
+    max_total_upload_bytes = 15 * 1024 * 1024  # 15 MB
 
     def clean(self) -> dict:
         cleaned = super().clean()
@@ -64,9 +64,9 @@ class RepositoryInputForm(forms.Form):
                 self.add_error(
                     "folder_files",
                     f"Folder upload is too large ({total_size} bytes). "
-                    "Maximum allowed size is 10 MB.",
+                    "Maximum allowed size is 15 MB.",
                 )
         if source_type == "zip" and zip_file and zip_file.size > self.max_total_upload_bytes:
-            self.add_error("zip_file", "Zip upload is too large. Maximum allowed size is 10 MB.")
+            self.add_error("zip_file", "Zip upload is too large. Maximum allowed size is 15 MB.")
 
         return cleaned

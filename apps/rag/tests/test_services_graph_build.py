@@ -52,6 +52,34 @@ class GraphBuildServiceTests(SimpleTestCase):
         edges = extract_file_relations(docs)
         self.assertEqual(edges, [])
 
+    def test_extract_file_relations_resolves_relative_single_dot_imports(self) -> None:
+        docs = [
+            _doc("pkg/a.py", "from . import b\nfrom .c import d"),
+            _doc("pkg/b.py", "x = 1"),
+            _doc("pkg/c.py", "y = 2"),
+            _doc("pkg/c/d.py", "z = 3"),
+        ]
+
+        edges = extract_file_relations(docs)
+        triples = {(e.source, e.target, e.relation) for e in edges}
+
+        self.assertIn(("pkg/a.py", "pkg/b.py", "imports"), triples)
+        self.assertIn(("pkg/a.py", "pkg/c.py", "imports"), triples)
+        self.assertIn(("pkg/a.py", "pkg/c/d.py", "imports"), triples)
+
+    def test_extract_file_relations_resolves_relative_double_dot_imports(self) -> None:
+        docs = [
+            _doc("pkg/sub/a.py", "from ..utils import helper"),
+            _doc("pkg/utils.py", "VALUE = 1"),
+            _doc("pkg/utils/helper.py", "def run(): pass"),
+        ]
+
+        edges = extract_file_relations(docs)
+        triples = {(e.source, e.target, e.relation) for e in edges}
+
+        self.assertIn(("pkg/sub/a.py", "pkg/utils.py", "imports"), triples)
+        self.assertIn(("pkg/sub/a.py", "pkg/utils/helper.py", "imports"), triples)
+
     def test_build_graph_adds_all_document_nodes(self) -> None:
         docs = [
             _doc("pkg/a.py", ""),

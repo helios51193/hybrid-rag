@@ -2,6 +2,13 @@ from django.db import models
 
 
 class CodeNode(models.Model):
+    indexing_job = models.ForeignKey(
+        "IndexingJob",
+        on_delete=models.CASCADE,
+        related_name="code_nodes",
+        null=True,
+        blank=True,
+    )
     project_id = models.CharField(max_length=255, db_index=True)
     node_id = models.CharField(max_length=1024)
     node_type = models.CharField(max_length=64, default="file")
@@ -19,6 +26,13 @@ class CodeNode(models.Model):
 
 
 class CodeEdge(models.Model):
+    indexing_job = models.ForeignKey(
+        "IndexingJob",
+        on_delete=models.CASCADE,
+        related_name="code_edges",
+        null=True,
+        blank=True,
+    )
     project_id = models.CharField(max_length=255, db_index=True)
     source_node_id = models.CharField(max_length=1024)
     target_node_id = models.CharField(max_length=1024)
