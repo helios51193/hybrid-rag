@@ -1,0 +1,15 @@
+<div id="graph-panel" class="card bg-base-100 shadow-sm border border-base-300 h-full">
+  <div class="card-body p-3 h-full min-h-0">
+    <div class="flex items-center justify-between">
+      <h2 class="card-title text-base">Codebase Graph</h2>
+      <div class="text-xs text-base-content/60">Project: {{ selected_project_id if selected_project_id else "N/A" }}</div>
+    </div>
+    <div class="divider my-1"></div>
+
+    <script id="graph-elements-json" type="application/json">{{ graph_elements_json | safe }}</script>
+    <div
+      id="codebase-graph-canvas"
+      class="w-full h-full min-h-0 rounded-box bg-base-200 border border-base-300"
+    ></div>
+  </div>
+</div>

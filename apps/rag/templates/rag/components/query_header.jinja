@@ -1,0 +1,18 @@
+<div class="card bg-base-100 shadow-sm border border-base-300 h-full">
+  <div class="card-body py-3 px-4 overflow-hidden">
+    <div class="flex items-center justify-between gap-4 h-full">
+      <div class="min-w-0">
+        <h1 class="text-sm font-semibold truncate">
+          Project: {{ selected_project_id if selected_project_id else "No project selected" }}
+        </h1>
+        <p class="text-xs text-base-content/60 mt-1">
+          Nodes: {{ graph_node_count }} | Edges: {{ graph_edge_count }}
+        </p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="badge badge-success badge-sm">Indexed</span>
+        <a class="btn btn-xs" href="{{ url('rag:dashboard') }}">Back</a>
+      </div>
+    </div>
+  </div>
+</div>

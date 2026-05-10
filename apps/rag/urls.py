@@ -12,4 +12,5 @@ urlpatterns = [
     path("repositories/<int:repo_id>/", views.delete_repository, name="delete_repository"),
     path("repositories/<int:repo_id>/status-row/", views.repository_status_row, name="repository_status_row"),
     path("query/", views.query_page, name="query_page"),
+    path("query/run/", views.query_run, name="query_run"),
 ]

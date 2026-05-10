@@ -3,15 +3,86 @@
 {% block title %}Query | Code Intelligence{% endblock %}
 
 {% block content %}
-<div class="card bg-base-100 shadow-sm border border-base-300">
-  <div class="card-body">
-    <h1 class="card-title">Query Repository</h1>
-    <p class="text-sm text-base-content/70">
-      Selected project: {{ selected_project_id if selected_project_id else "None" }}
-    </p>
-    <div class="alert alert-info mt-4">
-      <span>Query UI will be wired after retrieval endpoints are ready.</span>
-    </div>
+<div class="h-[calc(100vh-7rem)] min-h-[680px] grid grid-rows-[64px_1fr] gap-3">
+  <div class="min-h-0">
+    {% include "rag/components/query_header.jinja" %}
+  </div>
+
+  <div id="query-dynamic-workspace" class="grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0">
+    {% include "rag/components/query_workspace.jinja" %}
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script>
+  // Keep graph logic in dedicated functions so it can be moved to a static JS file later.
+  function getGraphElementsFromJson() {
+    const holder = document.getElementById("graph-elements-json");
+    if (!holder) return [];
+    try {
+      return JSON.parse(holder.textContent || "[]");
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function getNodeColor(nodeType) {
+    if (nodeType === "file") return "#60a5fa";
+    return "#a78bfa";
+  }
+
+  function renderCodebaseGraph() {
+    const container = document.getElementById("codebase-graph-canvas");
+    if (!container || typeof cytoscape === "undefined") return;
+
+    const elements = getGraphElementsFromJson();
+    cytoscape({
+      container: container,
+      elements: elements,
+      style: [
+        {
+          selector: "node",
+          style: {
+            "background-color": function (ele) { return getNodeColor(ele.data("node_type")); },
+            "label": "data(label)",
+            "color": "#e5e7eb",
+            "font-size": "10px",
+            "text-wrap": "wrap",
+            "text-max-width": "120px",
+            "text-valign": "center",
+            "text-halign": "center",
+            "width": 34,
+            "height": 34,
+          }
+        },
+        {
+          selector: "edge",
+          style: {
+            "curve-style": "bezier",
+            "line-color": "#6b7280",
+            "target-arrow-color": "#6b7280",
+            "target-arrow-shape": "triangle",
+            "arrow-scale": 0.7,
+            "width": 1.5,
+          }
+        }
+      ],
+      layout: {
+        name: "cose",
+        animate: false,
+        fit: true,
+        padding: 24,
+      }
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", renderCodebaseGraph);
+  document.addEventListener("htmx:afterSwap", function (event) {
+    if (event.target && event.target.id === "query-dynamic-workspace") {
+      renderCodebaseGraph();
+    }
+  });
+</script>
 {% endblock %}

@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.conf import settings
+from django.core.cache import cache
 from django.utils import timezone
 
 from apps.rag.models import IndexingJob
@@ -42,6 +43,7 @@ def run_indexing_job(self, job_id: int) -> None:
         job.graph_nodes = stats.graph_nodes
         job.graph_edges = stats.graph_edges
         job.save()
+        cache.delete(f"rag:graph:elements:{job.project_id}")
     except Exception as exc:
         job.status = "FAILED"
         job.finished_at = timezone.now()

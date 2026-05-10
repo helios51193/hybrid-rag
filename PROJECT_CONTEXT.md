@@ -92,6 +92,24 @@ The system should ingest a codebase and answer natural-language questions with g
 - Added custom DaisyUI delete-confirmation modal (replaced browser confirm).
 - Process now reuses the same `IndexingJob` row instead of creating a new one.
 
+### Query UI + Execution Pipeline (v1)
+
+- Added fixed-frame dark query layout matching wireframe:
+  - header (project + node/edge metadata)
+  - left column: scrollable conversation + fixed question box
+  - right column: fixed graph area + fixed citations area
+- All major query areas are split into reusable components so they can be HTMX-updated independently.
+- Added Cytoscape graph visualization with graph data injected as JSON.
+- Added cached graph element loading in query view to avoid rebuilding graph on every query request.
+- Added cache invalidation after successful indexing completion.
+- Added HTMX query run endpoint and partial workspace response.
+- Added minimal hybrid retrieval pipeline:
+  - vector retrieval from Qdrant by `project_id`
+  - graph-based related-file expansion from persisted `CodeEdge`
+  - hybrid score merge/ranking
+  - context + citation assembly
+  - placeholder answer synthesis from retrieved context
+
 ### Upload Safety Limits
 
 - Added request/file size and count guardrails:
@@ -141,8 +159,8 @@ The system should ingest a codebase and answer natural-language questions with g
 
 ## Immediate Next Steps
 
-1. Add tests for Qdrant repository query/filter/delete behavior.
-2. Add tests for graph repository save/load behavior.
-3. Implement `graph_query.py` (neighbors/hops expansion from persisted graph).
-4. Implement `hybrid_search.py` with vector + graph merge scoring.
-5. Build query page interactions and citation rendering with HTMX.
+1. Add persistent query history model (`QueryLog`) and render multi-turn chat history.
+2. Replace placeholder answer synthesis with LLM-based grounded response generation.
+3. Add tests for Qdrant repository query/filter/delete behavior.
+4. Add tests for graph repository save/load behavior.
+5. Add tests for query execution endpoint and HTMX partial rendering flow.

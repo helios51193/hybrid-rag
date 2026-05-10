@@ -1,0 +1,25 @@
+<div id="conversation-panel" class="card bg-base-100 shadow-sm border border-base-300 h-full">
+  <div class="card-body p-3 h-full min-h-0">
+    <h2 class="card-title text-base">Conversation</h2>
+    <div class="divider my-1"></div>
+
+    <div id="conversation-thread" class="space-y-3 overflow-y-auto min-h-0 h-full pr-1">
+      {% if qa_history %}
+        {% for item in qa_history %}
+          <div class="chat chat-end">
+            <div class="chat-bubble chat-bubble-primary whitespace-pre-wrap">{{ item.question }}</div>
+          </div>
+          <div class="chat chat-start">
+            <div class="chat-bubble chat-bubble-neutral whitespace-pre-wrap">{{ item.answer }}</div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="chat chat-start">
+          <div class="chat-bubble chat-bubble-neutral">
+            Ask a question about your selected codebase and the answer will appear here with citations.
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>

@@ -1,0 +1,25 @@
+<div id="query-input-box" class="card bg-base-100 shadow-sm border border-base-300 h-full">
+  <div class="card-body gap-2 p-3 overflow-hidden">
+    <div class="flex flex-wrap gap-2">
+      <button class="btn btn-xs btn-outline">Where is auth handled?</button>
+      <button class="btn btn-xs btn-outline">Show key models</button>
+      <button class="btn btn-xs btn-outline">List API endpoints</button>
+    </div>
+    <form
+      class="flex gap-2"
+      hx-post="{{ url('rag:query_run') }}"
+      hx-target="#query-dynamic-workspace"
+      hx-swap="innerHTML"
+    >
+      <input type="hidden" name="project_id" value="{{ selected_project_id }}" />
+      <input
+        name="query_text"
+        type="text"
+        class="input input-bordered w-full"
+        placeholder="Ask anything about the codebase..."
+        required
+      />
+      <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+  </div>
+</div>

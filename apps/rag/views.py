@@ -3,16 +3,22 @@ from __future__ import annotations
 import shutil
 import uuid
 import zipfile
+import json
 from pathlib import Path
 
 from django.conf import settings
+from django.core.cache import cache
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from apps.rag.forms import RepositoryInputForm
 from apps.rag.models import CodeEdge, CodeNode, IndexingJob
+from apps.rag.repositories.graph_repository import GraphRepository
 from apps.rag.repositories.qdrant_repository import QdrantRepository
+from apps.rag.services.answering import synthesize_answer
+from apps.rag.services.context_builder import build_context_and_citations
+from apps.rag.services.hybrid_search import run_hybrid_search
 
 try:
     from apps.rag.tasks.indexing_tasks import run_indexing_job
@@ -99,6 +105,62 @@ def _ui_status_from_job_status(job_status: str) -> str:
         IndexingJob.Status.FAILED: "failed",
     }
     return mapping.get(job_status, "not_processed")
+
+
+def _graph_cache_key(project_id: str) -> str:
+    return f"rag:graph:elements:{project_id}"
+
+
+def _build_graph_elements_for_project(project_id: str) -> list[dict]:
+    graph = GraphRepository().load_graph(project_id=project_id)
+    elements: list[dict] = []
+
+    for node_id, attrs in graph.nodes(data=True):
+        elements.append(
+            {
+                "data": {
+                    "id": str(node_id),
+                    "label": str(node_id).split("/")[-1],
+                    "node_type": attrs.get("node_type", "file"),
+                    "language": attrs.get("language", ""),
+                    "file_path": attrs.get("file_path", str(node_id)),
+                }
+            }
+        )
+
+    for source, target, attrs in graph.edges(data=True):
+        elements.append(
+            {
+                "data": {
+                    "id": f"{source}->{target}",
+                    "source": str(source),
+                    "target": str(target),
+                    "relation": attrs.get("relation", "imports"),
+                }
+            }
+        )
+
+    return elements
+
+
+def _get_cached_graph_elements(project_id: str) -> list[dict]:
+    key = _graph_cache_key(project_id)
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    elements = _build_graph_elements_for_project(project_id)
+    # 15 minutes cache; can be invalidated on indexing completion in task flow later.
+    cache.set(key, elements, timeout=15 * 60)
+    return elements
+
+
+def _vector_repo() -> QdrantRepository:
+    return QdrantRepository(
+        collection_name=getattr(settings, "RAG_VECTOR_COLLECTION", "rag_chunks"),
+        url=getattr(settings, "QDRANT_URL", "http://127.0.0.1:6333"),
+        api_key=getattr(settings, "QDRANT_API_KEY", None),
+        timeout=getattr(settings, "QDRANT_TIMEOUT", 30),
+    )
 
 
 @require_GET
@@ -239,11 +301,59 @@ def query_page(request: HttpRequest) -> HttpResponse:
     if repo_id:
         selected = IndexingJob.objects.filter(id=repo_id).first()
 
+    selected_project_id = selected.project_id if selected else ""
+    graph_elements = _get_cached_graph_elements(selected_project_id) if selected_project_id else []
+    graph_node_count = sum(1 for e in graph_elements if "source" not in (e.get("data") or {}))
+    graph_edge_count = sum(1 for e in graph_elements if "source" in (e.get("data") or {}))
+
     context = {
         "selected_repo_id": int(repo_id) if repo_id and repo_id.isdigit() else None,
-        "selected_project_id": selected.project_id if selected else "",
+        "selected_project_id": selected_project_id,
+        "repositories": _latest_repository_rows(),
+        "graph_elements_json": json.dumps(graph_elements),
+        "graph_node_count": graph_node_count,
+        "graph_edge_count": graph_edge_count,
+        "citations": [],
+        "qa_history": [],
     }
     return render(request, "rag/pages/query.jinja", context)
+
+
+@require_POST
+def query_run(request: HttpRequest) -> HttpResponse:
+    project_id = (request.POST.get("project_id") or "").strip()
+    query_text = (request.POST.get("query_text") or "").strip()
+    if not project_id or not query_text:
+        return HttpResponse("project_id and query_text are required", status=400)
+
+    vector_repo = _vector_repo()
+    try:
+        vector_repo.connect()
+        hits = run_hybrid_search(
+            project_id=project_id,
+            query_text=query_text,
+            vector_repo=vector_repo,
+            top_k=8,
+        )
+    finally:
+        vector_repo.close()
+
+    built = build_context_and_citations(hits)
+    answer_text = synthesize_answer(query_text=query_text, contexts=built.contexts)
+
+    graph_elements = _get_cached_graph_elements(project_id)
+    graph_node_count = sum(1 for e in graph_elements if "source" not in (e.get("data") or {}))
+    graph_edge_count = sum(1 for e in graph_elements if "source" in (e.get("data") or {}))
+
+    context = {
+        "selected_project_id": project_id,
+        "graph_elements_json": json.dumps(graph_elements),
+        "graph_node_count": graph_node_count,
+        "graph_edge_count": graph_edge_count,
+        "citations": built.citations,
+        "qa_history": [{"question": query_text, "answer": answer_text}],
+    }
+    return render(request, "rag/components/query_workspace.jinja", context)
 
 
 @require_GET
