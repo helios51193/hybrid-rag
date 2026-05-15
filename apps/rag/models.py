@@ -94,3 +94,49 @@ class IndexingJob(models.Model):
 
     def __str__(self) -> str:
         return f"{self.project_id} [{self.status}] #{self.id}"
+
+
+class Conversation(models.Model):
+    project_id = models.CharField(max_length=255, db_index=True)
+    title = models.CharField(max_length=255, blank=True, default="")
+    is_archived = models.BooleanField(default=False, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["project_id", "is_archived"]),
+            models.Index(fields=["-updated_at"]),
+        ]
+        ordering = ["-updated_at"]
+
+    def __str__(self) -> str:
+        return f"{self.project_id} :: {self.title or self.id}"
+
+
+class ConversationMessage(models.Model):
+    class Role(models.TextChoices):
+        USER = "user", "User"
+        ASSISTANT = "assistant", "Assistant"
+
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    role = models.CharField(max_length=16, choices=Role.choices, db_index=True)
+    content = models.TextField()
+    citations_json = models.JSONField(default=list, blank=True)
+    trace_json = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["conversation", "created_at"]),
+            models.Index(fields=["conversation", "role", "created_at"]),
+        ]
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.conversation_id}:{self.role}:{self.id}"

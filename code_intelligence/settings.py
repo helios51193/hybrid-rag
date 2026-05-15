@@ -183,7 +183,18 @@ LOGIN_URL = '/auth/login/'
 RAG_EMBEDDING_BACKEND = os.getenv("RAG_EMBEDDING_BACKEND", "deterministic")
 RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-3-small")
 
+
+# RAG Answer Generation
+# Supported backends:
+# - "fallback" (deterministic local response)
+# - "openai"
+RAG_ANSWER_BACKEND = os.getenv("RAG_ANSWER_BACKEND", "fallback")
+RAG_ANSWER_MODEL = os.getenv("RAG_ANSWER_MODEL", "gpt-4.1-mini")
+RAG_ANSWER_TEMPERATURE = float(os.getenv("RAG_ANSWER_TEMPERATURE", "0.1"))
+
 # RAG Vector DB (Qdrant)
+# Base collection prefix. Final collection name is model-aware and includes
+# embedding backend/model fingerprint to prevent dimension collisions.
 RAG_VECTOR_COLLECTION = os.getenv("RAG_VECTOR_COLLECTION", "rag_chunks")
 QDRANT_URL = os.getenv("QDRANT_URL", "http://127.0.0.1:6333")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")

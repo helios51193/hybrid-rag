@@ -80,6 +80,17 @@ class QdrantRepository:
                     f"existing={existing_size}, incoming={vector_size}"
                 )
 
+    def _collection_exists(self) -> bool:
+        client = self._require_client()
+        try:
+            return bool(client.collection_exists(self.collection_name))
+        except Exception:
+            try:
+                client.get_collection(self.collection_name)
+                return True
+            except Exception:
+                return False
+
     @staticmethod
     def _payload_from_chunk(item: EmbeddedChunk) -> dict[str, Any]:
         c = item.chunk
@@ -145,14 +156,29 @@ class QdrantRepository:
         where: dict[str, Any] | None = None,
     ) -> list[VectorHit]:
         client = self._require_client()
+        if not self._collection_exists():
+            return []
         filt = self._build_filter(where)
-        hits = client.search(
-            collection_name=self.collection_name,
-            query_vector=query_vector,
-            limit=top_k,
-            query_filter=filt,
-            with_payload=True,
-        )
+        # qdrant-client API differs by version:
+        # - older: client.search(...)
+        # - newer: client.query_points(...)
+        if hasattr(client, "search"):
+            hits = client.search(
+                collection_name=self.collection_name,
+                query_vector=query_vector,
+                limit=top_k,
+                query_filter=filt,
+                with_payload=True,
+            )
+        else:
+            response = client.query_points(
+                collection_name=self.collection_name,
+                query=query_vector,
+                limit=top_k,
+                query_filter=filt,
+                with_payload=True,
+            )
+            hits = response.points
 
         results: list[VectorHit] = []
         for hit in hits:
@@ -170,6 +196,8 @@ class QdrantRepository:
 
     def delete_project(self, project_id: str) -> int:
         client = self._require_client()
+        if not self._collection_exists():
+            return 0
         project_filter = qm.Filter(
             must=[qm.FieldCondition(key="project_id", match=qm.MatchValue(value=project_id))]
         )

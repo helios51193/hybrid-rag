@@ -6,6 +6,7 @@ from django.utils import timezone
 from apps.rag.models import IndexingJob
 from apps.rag.repositories.graph_repository import GraphRepository
 from apps.rag.repositories.qdrant_repository import QdrantRepository
+from apps.rag.repositories.vector_config import get_vector_collection_name
 from apps.rag.services.indexing import run_indexing
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
@@ -19,7 +20,7 @@ def run_indexing_job(self, job_id: int) -> None:
     vector_repo: QdrantRepository | None = None
     try:
         vector_repo = QdrantRepository(
-            collection_name=getattr(settings, "RAG_VECTOR_COLLECTION", "rag_chunks"),
+            collection_name=get_vector_collection_name(),
             url=getattr(settings, "QDRANT_URL", "http://127.0.0.1:6333"),
             api_key=getattr(settings, "QDRANT_API_KEY", None),
             timeout=getattr(settings, "QDRANT_TIMEOUT", 30),

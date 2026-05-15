@@ -108,7 +108,21 @@ The system should ingest a codebase and answer natural-language questions with g
   - graph-based related-file expansion from persisted `CodeEdge`
   - hybrid score merge/ranking
   - context + citation assembly
-  - placeholder answer synthesis from retrieved context
+  - grounded answer synthesis with backend routing (`fallback` | `openai`)
+- Added model-aware Qdrant collection naming based on embedding backend/model fingerprint.
+- Added missing-collection-safe query/delete behavior in Qdrant repository.
+- Query submit button now disables and shows loader during HTMX request.
+
+### Conversation Flow (v1)
+
+- Query action now opens a conversation selector page.
+- Added "Start New Conversation" flow that creates a unique conversation record.
+- Added conversation runtime page requiring `repo_id` + `conversation_id`.
+- Added conversation persistence models:
+  - `Conversation`
+  - `ConversationMessage`
+- Query run now appends user + assistant messages and renders multi-turn history.
+- Repository delete now also deletes conversations/messages for that project.
 
 ### Upload Safety Limits
 
@@ -159,8 +173,8 @@ The system should ingest a codebase and answer natural-language questions with g
 
 ## Immediate Next Steps
 
-1. Add persistent query history model (`QueryLog`) and render multi-turn chat history.
-2. Replace placeholder answer synthesis with LLM-based grounded response generation.
-3. Add tests for Qdrant repository query/filter/delete behavior.
-4. Add tests for graph repository save/load behavior.
-5. Add tests for query execution endpoint and HTMX partial rendering flow.
+1. Add tests for conversation flows (`query_home`, `query_start`, `query_page`, `query_run`).
+2. Add tests for Qdrant repository query/filter/delete behavior (including missing collection fallback).
+3. Add tests for graph repository save/load behavior.
+4. Add retrieval debug trace panel (vector hits, graph-expanded files, final contexts).
+5. Improve answer quality controls (citation formatting, confidence/insufficient-context thresholds).

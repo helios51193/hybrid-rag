@@ -10,8 +10,12 @@
       hx-post="{{ url('rag:query_run') }}"
       hx-target="#query-dynamic-workspace"
       hx-swap="innerHTML"
+      hx-on::before-request="this.querySelector('button[type=submit]').disabled = true; this.querySelector('.send-label').classList.add('hidden'); this.querySelector('.send-loader').classList.remove('hidden');"
+      hx-on::after-request="this.querySelector('button[type=submit]').disabled = false; this.querySelector('.send-label').classList.remove('hidden'); this.querySelector('.send-loader').classList.add('hidden');"
     >
+      <input type="hidden" name="repo_id" value="{{ selected_repo_id if selected_repo_id else '' }}" />
       <input type="hidden" name="project_id" value="{{ selected_project_id }}" />
+      <input type="hidden" name="conversation_id" value="{{ selected_conversation_id if selected_conversation_id else '' }}" />
       <input
         name="query_text"
         type="text"
@@ -19,7 +23,13 @@
         placeholder="Ask anything about the codebase..."
         required
       />
-      <button type="submit" class="btn btn-primary">Send</button>
+      <button type="submit" class="btn btn-primary">
+        <span class="send-label">Send</span>
+        <span class="send-loader hidden flex items-center gap-2">
+          <span class="loading loading-spinner loading-xs"></span>
+          Sending
+        </span>
+      </button>
     </form>
   </div>
 </div>

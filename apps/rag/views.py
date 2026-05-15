@@ -9,13 +9,14 @@ from pathlib import Path
 from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from apps.rag.forms import RepositoryInputForm
-from apps.rag.models import CodeEdge, CodeNode, IndexingJob
+from apps.rag.models import CodeEdge, CodeNode, Conversation, ConversationMessage, IndexingJob
 from apps.rag.repositories.graph_repository import GraphRepository
 from apps.rag.repositories.qdrant_repository import QdrantRepository
+from apps.rag.repositories.vector_config import get_vector_collection_name
 from apps.rag.services.answering import synthesize_answer
 from apps.rag.services.context_builder import build_context_and_citations
 from apps.rag.services.hybrid_search import run_hybrid_search
@@ -156,11 +157,39 @@ def _get_cached_graph_elements(project_id: str) -> list[dict]:
 
 def _vector_repo() -> QdrantRepository:
     return QdrantRepository(
-        collection_name=getattr(settings, "RAG_VECTOR_COLLECTION", "rag_chunks"),
+        collection_name=get_vector_collection_name(),
         url=getattr(settings, "QDRANT_URL", "http://127.0.0.1:6333"),
         api_key=getattr(settings, "QDRANT_API_KEY", None),
         timeout=getattr(settings, "QDRANT_TIMEOUT", 30),
     )
+
+
+def _list_conversations(project_id: str) -> list[Conversation]:
+    if not project_id:
+        return []
+    return list(
+        Conversation.objects.filter(project_id=project_id, is_archived=False).order_by("-updated_at")
+    )
+
+
+def _qa_history_from_conversation(conversation: Conversation | None) -> list[dict]:
+    if conversation is None:
+        return []
+    history: list[dict] = []
+    pending_question: str | None = None
+    for msg in conversation.messages.all().order_by("created_at"):
+        if msg.role == ConversationMessage.Role.USER:
+            pending_question = msg.content
+            continue
+        if msg.role == ConversationMessage.Role.ASSISTANT:
+            history.append(
+                {
+                    "question": pending_question or "",
+                    "answer": msg.content,
+                }
+            )
+            pending_question = None
+    return history
 
 
 @require_GET
@@ -266,7 +295,7 @@ def delete_repository(request: HttpRequest, repo_id: int) -> HttpResponse:
 
     # 1) Delete vectors in Qdrant for this project.
     vector_repo = QdrantRepository(
-        collection_name=getattr(settings, "RAG_VECTOR_COLLECTION", "rag_chunks"),
+        collection_name=get_vector_collection_name(),
         url=getattr(settings, "QDRANT_URL", "http://127.0.0.1:6333"),
         api_key=getattr(settings, "QDRANT_API_KEY", None),
         timeout=getattr(settings, "QDRANT_TIMEOUT", 30),
@@ -286,7 +315,10 @@ def delete_repository(request: HttpRequest, repo_id: int) -> HttpResponse:
     if project_upload_dir.exists():
         shutil.rmtree(project_upload_dir, ignore_errors=True)
 
-    # 4) Delete indexing jobs for this project.
+    # 4) Delete conversations for this project.
+    Conversation.objects.filter(project_id=project_id).delete()
+
+    # 5) Delete indexing jobs for this project.
     IndexingJob.objects.filter(project_id=project_id).delete()
 
     response = HttpResponse(status=204)
@@ -295,36 +327,105 @@ def delete_repository(request: HttpRequest, repo_id: int) -> HttpResponse:
 
 
 @require_GET
-def query_page(request: HttpRequest) -> HttpResponse:
+def query_home(request: HttpRequest) -> HttpResponse:
     repo_id = request.GET.get("repo_id")
     selected = None
     if repo_id:
         selected = IndexingJob.objects.filter(id=repo_id).first()
 
     selected_project_id = selected.project_id if selected else ""
-    graph_elements = _get_cached_graph_elements(selected_project_id) if selected_project_id else []
-    graph_node_count = sum(1 for e in graph_elements if "source" not in (e.get("data") or {}))
-    graph_edge_count = sum(1 for e in graph_elements if "source" in (e.get("data") or {}))
+    conversation_rows = _list_conversations(selected_project_id)
 
     context = {
         "selected_repo_id": int(repo_id) if repo_id and repo_id.isdigit() else None,
         "selected_project_id": selected_project_id,
         "repositories": _latest_repository_rows(),
+        "conversation_rows": conversation_rows,
+    }
+    return render(request, "rag/pages/query_home.jinja", context)
+
+
+@require_GET
+def query_start(request: HttpRequest) -> HttpResponse:
+    repo_id = request.GET.get("repo_id")
+    selected = None
+    if repo_id and repo_id.isdigit():
+        selected = IndexingJob.objects.filter(id=int(repo_id)).first()
+    if selected is None:
+        return HttpResponse("Valid repo_id is required", status=400)
+
+    conversation = Conversation.objects.create(
+        project_id=selected.project_id,
+        title="New Conversation",
+    )
+    return redirect(f"{request.path.replace('/start/', '/chat/')}?repo_id={selected.id}&conversation_id={conversation.id}")
+
+
+@require_GET
+def query_page(request: HttpRequest) -> HttpResponse:
+    repo_id = request.GET.get("repo_id")
+    conversation_id = (request.GET.get("conversation_id") or "").strip()
+    selected = None
+    if repo_id:
+        selected = IndexingJob.objects.filter(id=repo_id).first()
+    if selected is None:
+        return HttpResponse("Valid repo_id is required", status=400)
+    if not conversation_id.isdigit():
+        return HttpResponse("conversation_id is required", status=400)
+
+    selected_project_id = selected.project_id
+    selected_repo_id = int(repo_id) if repo_id and repo_id.isdigit() else None
+    selected_conversation = Conversation.objects.filter(
+        id=int(conversation_id),
+        project_id=selected_project_id,
+        is_archived=False,
+    ).first()
+    if selected_conversation is None:
+        return HttpResponse("Conversation not found for this project", status=404)
+
+    graph_elements = _get_cached_graph_elements(selected_project_id) if selected_project_id else []
+    graph_node_count = sum(1 for e in graph_elements if "source" not in (e.get("data") or {}))
+    graph_edge_count = sum(1 for e in graph_elements if "source" in (e.get("data") or {}))
+    qa_history = _qa_history_from_conversation(selected_conversation)
+    last_assistant = selected_conversation.messages.filter(
+        role=ConversationMessage.Role.ASSISTANT
+    ).order_by("-created_at").first()
+    citations = list(last_assistant.citations_json) if last_assistant else []
+
+    context = {
+        "selected_repo_id": selected_repo_id,
+        "selected_project_id": selected_project_id,
         "graph_elements_json": json.dumps(graph_elements),
         "graph_node_count": graph_node_count,
         "graph_edge_count": graph_edge_count,
-        "citations": [],
-        "qa_history": [],
+        "citations": citations,
+        "qa_history": qa_history,
+        "selected_conversation_id": selected_conversation.id,
     }
     return render(request, "rag/pages/query.jinja", context)
 
 
 @require_POST
 def query_run(request: HttpRequest) -> HttpResponse:
+    repo_id = (request.POST.get("repo_id") or "").strip()
     project_id = (request.POST.get("project_id") or "").strip()
     query_text = (request.POST.get("query_text") or "").strip()
+    conversation_id = (request.POST.get("conversation_id") or "").strip()
     if not project_id or not query_text:
         return HttpResponse("project_id and query_text are required", status=400)
+
+    conversation: Conversation | None = None
+    if conversation_id.isdigit():
+        conversation = Conversation.objects.filter(
+            id=int(conversation_id),
+            project_id=project_id,
+            is_archived=False,
+        ).first()
+    if conversation is None:
+        conversation = Conversation.objects.create(
+            project_id=project_id,
+            title=query_text[:80],
+        )
 
     vector_repo = _vector_repo()
     try:
@@ -339,19 +440,50 @@ def query_run(request: HttpRequest) -> HttpResponse:
         vector_repo.close()
 
     built = build_context_and_citations(hits)
-    answer_text = synthesize_answer(query_text=query_text, contexts=built.contexts)
+    try:
+        answer_text = synthesize_answer(
+            query_text=query_text,
+            contexts=built.contexts,
+            citations=built.citations,
+        )
+    except Exception as exc:
+        answer_text = (
+            "Answer generation failed. Showing retrieval-only fallback.\n\n"
+            f"Reason: {str(exc)}"
+        )
+
+    ConversationMessage.objects.create(
+        conversation=conversation,
+        role=ConversationMessage.Role.USER,
+        content=query_text,
+    )
+    ConversationMessage.objects.create(
+        conversation=conversation,
+        role=ConversationMessage.Role.ASSISTANT,
+        content=answer_text,
+        citations_json=built.citations,
+        trace_json={"hit_count": len(hits)},
+    )
+    if not conversation.title:
+        conversation.title = query_text[:80]
+    conversation.save(update_fields=["title", "updated_at"])
 
     graph_elements = _get_cached_graph_elements(project_id)
     graph_node_count = sum(1 for e in graph_elements if "source" not in (e.get("data") or {}))
     graph_edge_count = sum(1 for e in graph_elements if "source" in (e.get("data") or {}))
 
+    conversation_rows = _list_conversations(project_id)
+    qa_history = _qa_history_from_conversation(conversation)
     context = {
         "selected_project_id": project_id,
+        "selected_repo_id": int(repo_id) if repo_id.isdigit() else None,
+        "conversation_rows": conversation_rows,
+        "selected_conversation_id": conversation.id,
         "graph_elements_json": json.dumps(graph_elements),
         "graph_node_count": graph_node_count,
         "graph_edge_count": graph_edge_count,
         "citations": built.citations,
-        "qa_history": [{"question": query_text, "answer": answer_text}],
+        "qa_history": qa_history,
     }
     return render(request, "rag/components/query_workspace.jinja", context)
 

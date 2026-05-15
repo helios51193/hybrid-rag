@@ -1,0 +1,10 @@
+<div class="hidden" id="query-home-redirect" data-redirect-url="{{ redirect_url }}"></div>
+<script>
+  (function () {
+    var node = document.getElementById("query-home-redirect");
+    if (!node) return;
+    var url = node.getAttribute("data-redirect-url");
+    if (!url) return;
+    window.location.href = url;
+  })();
+</script>

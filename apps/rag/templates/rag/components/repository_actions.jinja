@@ -16,7 +16,7 @@
   </button>
 
   <a
-    href="{{ url('rag:query_page') }}?repo_id={{ repo.id }}"
+    href="{{ url('rag:query_home') }}?repo_id={{ repo.id }}"
     class="btn btn-sm btn-accent join-item {% if repo.status != 'ready' %}btn-disabled{% endif %}"
     {% if repo.status != "ready" %}aria-disabled="true"{% endif %}
   >
