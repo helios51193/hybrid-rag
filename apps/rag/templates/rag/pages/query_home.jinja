@@ -35,7 +35,7 @@
               <tr>
                 <th>Title</th>
                 <th>Updated</th>
-                <th class="text-right">Action</th>
+                <th class="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -44,12 +44,24 @@
                   <td>{{ conv.title if conv.title else ("Conversation " ~ conv.id) }}</td>
                   <td>{{ conv.updated_at }}</td>
                   <td class="text-right">
-                    <a
-                      class="btn btn-xs btn-outline"
-                      href="{{ url('rag:query_page') }}?repo_id={{ selected_repo_id }}&conversation_id={{ conv.id }}"
-                    >
-                      Open
-                    </a>
+                    <div class="inline-flex gap-1">
+                      <a
+                        class="btn btn-xs btn-outline"
+                        href="{{ url('rag:query_page') }}?repo_id={{ selected_repo_id }}&conversation_id={{ conv.id }}"
+                      >
+                        Open
+                      </a>
+                      <form
+                        method="post"
+                        action="{{ url('rag:delete_conversation', kwargs={'conversation_id': conv.id}) }}"
+                        onsubmit="return confirm('Delete this conversation?');"
+                        class="inline"
+                      >
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token if csrf_token is defined else '' }}" />
+                        <input type="hidden" name="repo_id" value="{{ selected_repo_id if selected_repo_id else '' }}" />
+                        <button type="submit" class="btn btn-xs btn-error btn-outline">Delete</button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               {% endfor %}

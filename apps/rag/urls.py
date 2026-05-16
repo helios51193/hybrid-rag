@@ -14,5 +14,7 @@ urlpatterns = [
     path("query/", views.query_home, name="query_home"),
     path("query/start/", views.query_start, name="query_start"),
     path("query/chat/", views.query_page, name="query_page"),
+    path("query/conversations/<int:conversation_id>/delete/", views.delete_conversation, name="delete_conversation"),
     path("query/run/", views.query_run, name="query_run"),
+    path("query/graph/expand/", views.query_graph_expand, name="query_graph_expand"),
 ]

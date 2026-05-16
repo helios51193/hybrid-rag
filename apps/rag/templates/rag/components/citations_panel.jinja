@@ -1,5 +1,5 @@
-<div id="citations-panel" class="card bg-base-100 shadow-sm border border-base-300 h-full">
-  <div class="card-body p-3 h-full min-h-0">
+<div id="citations-panel" class="card bg-base-100 shadow-sm border border-base-300 h-full min-w-0 overflow-hidden">
+  <div class="card-body p-3 h-full min-h-0 min-w-0 overflow-hidden">
     <div class="flex items-center justify-between">
       <h2 class="card-title text-base">Citations</h2>
       <button class="btn btn-xs btn-ghost">View All</button>
@@ -7,10 +7,10 @@
     <div class="divider my-1"></div>
 
     {% if citations %}
-      <div class="space-y-2 overflow-y-auto min-h-0 h-full pr-1">
+      <div class="space-y-2 overflow-y-auto min-h-0 h-full pr-1 overflow-x-hidden">
         {% for citation in citations %}
-          <div class="rounded-box border border-base-300 p-2">
-            <div class="text-sm font-medium">{{ citation.file_path }}</div>
+          <div class="rounded-box border border-base-300 p-2 min-w-0">
+            <div class="text-sm font-medium break-all">{{ citation.file_path }}</div>
             <div class="text-xs text-base-content/70">
               Line {{ citation.start_line }}-{{ citation.end_line }}
             </div>

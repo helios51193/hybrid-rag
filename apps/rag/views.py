@@ -10,6 +10,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from apps.rag.forms import RepositoryInputForm
@@ -153,6 +154,130 @@ def _get_cached_graph_elements(project_id: str) -> list[dict]:
     # 15 minutes cache; can be invalidated on indexing completion in task flow later.
     cache.set(key, elements, timeout=15 * 60)
     return elements
+
+
+def _split_graph_elements(elements: list[dict]) -> tuple[dict[str, dict], list[dict], dict[str, list[dict]], dict[str, list[dict]]]:
+    nodes_by_id: dict[str, dict] = {}
+    edges: list[dict] = []
+    out_edges: dict[str, list[dict]] = {}
+    in_edges: dict[str, list[dict]] = {}
+
+    for item in elements:
+        data = (item or {}).get("data") or {}
+        node_id = data.get("id")
+        source = data.get("source")
+        target = data.get("target")
+        if source and target:
+            edges.append(item)
+            out_edges.setdefault(str(source), []).append(item)
+            in_edges.setdefault(str(target), []).append(item)
+            continue
+        if node_id:
+            nodes_by_id[str(node_id)] = item
+
+    return nodes_by_id, edges, out_edges, in_edges
+
+
+def _seed_node_ids_from_citations(
+    *,
+    nodes_by_id: dict[str, dict],
+    citations: list[dict],
+) -> set[str]:
+    seeds: set[str] = set()
+    file_paths = {
+        str(c.get("file_path", "")).strip()
+        for c in citations
+        if str(c.get("file_path", "")).strip()
+    }
+    if not file_paths:
+        return seeds
+
+    for node_id, node in nodes_by_id.items():
+        data = (node or {}).get("data") or {}
+        file_path = str(data.get("file_path", "")).strip()
+        if node_id in file_paths or file_path in file_paths:
+            seeds.add(node_id)
+    return seeds
+
+
+def _build_query_subgraph_elements(
+    *,
+    project_id: str,
+    citations: list[dict],
+    max_nodes: int = 120,
+    allowed_relations: set[str] | None = None,
+    hops: int = 1,
+) -> list[dict]:
+    all_elements = _get_cached_graph_elements(project_id)
+    if not all_elements:
+        return []
+
+    nodes_by_id, _edges, out_edges, in_edges = _split_graph_elements(all_elements)
+    seeds = _seed_node_ids_from_citations(nodes_by_id=nodes_by_id, citations=citations)
+    if not seeds:
+        return []
+
+    if allowed_relations is None:
+        allowed_relations = {"calls", "defines", "inherits", "test_targets", "imports"}
+
+    selected_nodes: set[str] = set(seeds)
+    selected_edges: set[str] = set()
+    frontier: set[str] = set(seeds)
+
+    for _ in range(max(0, hops)):
+        next_frontier: set[str] = set()
+        for nid in frontier:
+            for edge in out_edges.get(nid, []):
+                data = edge.get("data") or {}
+                relation = str(data.get("relation", data.get("relation_type", "imports")))
+                if relation not in allowed_relations:
+                    continue
+                source = str(data.get("source", ""))
+                target = str(data.get("target", ""))
+                edge_id = str(data.get("id", f"{source}->{target}"))
+                if source and len(selected_nodes) < max_nodes:
+                    selected_nodes.add(source)
+                if target and len(selected_nodes) < max_nodes:
+                    selected_nodes.add(target)
+                selected_edges.add(edge_id)
+                if target and target not in selected_nodes:
+                    next_frontier.add(target)
+            for edge in in_edges.get(nid, []):
+                data = edge.get("data") or {}
+                relation = str(data.get("relation", data.get("relation_type", "imports")))
+                if relation not in allowed_relations:
+                    continue
+                source = str(data.get("source", ""))
+                target = str(data.get("target", ""))
+                edge_id = str(data.get("id", f"{source}->{target}"))
+                if source and len(selected_nodes) < max_nodes:
+                    selected_nodes.add(source)
+                if target and len(selected_nodes) < max_nodes:
+                    selected_nodes.add(target)
+                selected_edges.add(edge_id)
+                if source and source not in selected_nodes:
+                    next_frontier.add(source)
+        frontier = next_frontier
+        if len(selected_nodes) >= max_nodes:
+            break
+
+    # Keep deterministic output order.
+    selected_node_items = [
+        nodes_by_id[nid]
+        for nid in sorted(selected_nodes)
+        if nid in nodes_by_id
+    ]
+    edge_items: list[dict] = []
+    for edge_list in out_edges.values():
+        for edge in edge_list:
+            data = edge.get("data") or {}
+            edge_id = str(data.get("id", ""))
+            source = str(data.get("source", ""))
+            target = str(data.get("target", ""))
+            if edge_id in selected_edges and source in selected_nodes and target in selected_nodes:
+                edge_items.append(edge)
+
+    return selected_node_items + edge_items
 
 
 def _vector_repo() -> QdrantRepository:
@@ -361,6 +486,22 @@ def query_start(request: HttpRequest) -> HttpResponse:
     return redirect(f"{request.path.replace('/start/', '/chat/')}?repo_id={selected.id}&conversation_id={conversation.id}")
 
 
+@require_POST
+def delete_conversation(request: HttpRequest, conversation_id: int) -> HttpResponse:
+    conversation = get_object_or_404(Conversation, id=conversation_id)
+    project_id = conversation.project_id
+    conversation.delete()
+
+    repo_id = (request.POST.get("repo_id") or "").strip()
+    if repo_id.isdigit():
+        return redirect(f"{reverse('rag:query_home')}?repo_id={repo_id}")
+
+    fallback_repo = IndexingJob.objects.filter(project_id=project_id).order_by("-queued_at").first()
+    if fallback_repo:
+        return redirect(f"{reverse('rag:query_home')}?repo_id={fallback_repo.id}")
+    return redirect("rag:dashboard")
+
+
 @require_GET
 def query_page(request: HttpRequest) -> HttpResponse:
     repo_id = request.GET.get("repo_id")
@@ -383,9 +524,11 @@ def query_page(request: HttpRequest) -> HttpResponse:
     if selected_conversation is None:
         return HttpResponse("Conversation not found for this project", status=404)
 
-    graph_elements = _get_cached_graph_elements(selected_project_id) if selected_project_id else []
-    graph_node_count = sum(1 for e in graph_elements if "source" not in (e.get("data") or {}))
-    graph_edge_count = sum(1 for e in graph_elements if "source" in (e.get("data") or {}))
+    # First load intentionally keeps graph empty to avoid rendering huge codebases.
+    graph_elements: list[dict] = []
+    full_graph_elements = _get_cached_graph_elements(selected_project_id) if selected_project_id else []
+    graph_node_count = sum(1 for e in full_graph_elements if "source" not in (e.get("data") or {}))
+    graph_edge_count = sum(1 for e in full_graph_elements if "source" in (e.get("data") or {}))
     qa_history = _qa_history_from_conversation(selected_conversation)
     last_assistant = selected_conversation.messages.filter(
         role=ConversationMessage.Role.ASSISTANT
@@ -396,6 +539,7 @@ def query_page(request: HttpRequest) -> HttpResponse:
         "selected_repo_id": selected_repo_id,
         "selected_project_id": selected_project_id,
         "graph_elements_json": json.dumps(graph_elements),
+        "graph_is_empty_state": True,
         "graph_node_count": graph_node_count,
         "graph_edge_count": graph_edge_count,
         "citations": citations,
@@ -441,16 +585,29 @@ def query_run(request: HttpRequest) -> HttpResponse:
 
     built = build_context_and_citations(hits)
     try:
-        answer_text = synthesize_answer(
+        answer_result = synthesize_answer(
             query_text=query_text,
             contexts=built.contexts,
             citations=built.citations,
         )
     except Exception as exc:
+        answer_result = None
         answer_text = (
             "Answer generation failed. Showing retrieval-only fallback.\n\n"
             f"Reason: {str(exc)}"
         )
+    else:
+        answer_text = answer_result.answer_text
+
+    selected_citations = built.citations
+    if answer_result and answer_result.citations_doc_numbers:
+        picked: list[dict] = []
+        for doc_n in answer_result.citations_doc_numbers:
+            idx = doc_n - 1
+            if 0 <= idx < len(built.citations):
+                picked.append(built.citations[idx])
+        if picked:
+            selected_citations = picked
 
     ConversationMessage.objects.create(
         conversation=conversation,
@@ -461,16 +618,31 @@ def query_run(request: HttpRequest) -> HttpResponse:
         conversation=conversation,
         role=ConversationMessage.Role.ASSISTANT,
         content=answer_text,
-        citations_json=built.citations,
-        trace_json={"hit_count": len(hits)},
+        citations_json=selected_citations,
+        trace_json={
+            "hit_count": len(hits),
+            "answer_contract": answer_result.to_trace() if answer_result else {
+                "contract_version": "v1",
+                "backend": getattr(settings, "RAG_ANSWER_BACKEND", "fallback"),
+                "status": "error",
+                "error_message": "answer generation failed before contract creation",
+            },
+        },
     )
     if not conversation.title:
         conversation.title = query_text[:80]
     conversation.save(update_fields=["title", "updated_at"])
 
-    graph_elements = _get_cached_graph_elements(project_id)
-    graph_node_count = sum(1 for e in graph_elements if "source" not in (e.get("data") or {}))
-    graph_edge_count = sum(1 for e in graph_elements if "source" in (e.get("data") or {}))
+    full_graph_elements = _get_cached_graph_elements(project_id)
+    graph_node_count = sum(1 for e in full_graph_elements if "source" not in (e.get("data") or {}))
+    graph_edge_count = sum(1 for e in full_graph_elements if "source" in (e.get("data") or {}))
+    graph_elements = _build_query_subgraph_elements(
+        project_id=project_id,
+        citations=selected_citations,
+        max_nodes=120,
+        allowed_relations={"calls", "defines", "inherits", "test_targets", "imports"},
+        hops=1,
+    )
 
     conversation_rows = _list_conversations(project_id)
     qa_history = _qa_history_from_conversation(conversation)
@@ -480,12 +652,77 @@ def query_run(request: HttpRequest) -> HttpResponse:
         "conversation_rows": conversation_rows,
         "selected_conversation_id": conversation.id,
         "graph_elements_json": json.dumps(graph_elements),
+        "graph_is_empty_state": False if graph_elements else True,
         "graph_node_count": graph_node_count,
         "graph_edge_count": graph_edge_count,
-        "citations": built.citations,
+        "citations": selected_citations,
         "qa_history": qa_history,
     }
     return render(request, "rag/components/query_workspace.jinja", context)
+
+
+@require_GET
+def query_graph_expand(request: HttpRequest) -> HttpResponse:
+    project_id = (request.GET.get("project_id") or "").strip()
+    if not project_id:
+        return HttpResponse("project_id is required", status=400)
+
+    visible_ids = {
+        x.strip()
+        for x in (request.GET.get("visible_node_ids") or "").split(",")
+        if x.strip()
+    }
+    relation_types = {
+        x.strip()
+        for x in (request.GET.get("relation_types") or "").split(",")
+        if x.strip()
+    }
+    if not relation_types:
+        relation_types = {"calls", "defines", "inherits", "test_targets", "imports"}
+
+    try:
+        max_nodes = int(request.GET.get("max_nodes") or "120")
+    except ValueError:
+        max_nodes = 120
+    max_nodes = max(20, min(max_nodes, 300))
+
+    all_elements = _get_cached_graph_elements(project_id)
+    nodes_by_id, _edges, out_edges, in_edges = _split_graph_elements(all_elements)
+    if not visible_ids:
+        payload = {"elements": []}
+        return HttpResponse(json.dumps(payload), content_type="application/json")
+
+    selected_nodes: set[str] = set(visible_ids)
+    selected_edges: list[dict] = []
+    for nid in list(visible_ids):
+        for edge in out_edges.get(nid, []) + in_edges.get(nid, []):
+            data = edge.get("data") or {}
+            relation = str(data.get("relation", data.get("relation_type", "imports")))
+            if relation not in relation_types:
+                continue
+            source = str(data.get("source", ""))
+            target = str(data.get("target", ""))
+            if source and len(selected_nodes) < max_nodes:
+                selected_nodes.add(source)
+            if target and len(selected_nodes) < max_nodes:
+                selected_nodes.add(target)
+            selected_edges.append(edge)
+            if len(selected_nodes) >= max_nodes:
+                break
+        if len(selected_nodes) >= max_nodes:
+            break
+
+    node_items = [nodes_by_id[nid] for nid in sorted(selected_nodes) if nid in nodes_by_id]
+    edge_items = []
+    for edge in selected_edges:
+        data = edge.get("data") or {}
+        source = str(data.get("source", ""))
+        target = str(data.get("target", ""))
+        if source in selected_nodes and target in selected_nodes:
+            edge_items.append(edge)
+
+    payload = {"elements": node_items + edge_items}
+    return HttpResponse(json.dumps(payload), content_type="application/json")
 
 
 @require_GET

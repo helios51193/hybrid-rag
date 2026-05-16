@@ -12,11 +12,54 @@
     {% include "rag/components/query_workspace.jinja" %}
   </div>
 </div>
+
+<div
+  id="graph-drawer-backdrop"
+  style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1040;"
+></div>
+<aside
+  id="graph-controls-drawer"
+  class="bg-base-100 border-l border-base-300 shadow-2xl"
+  style="position:fixed; top:0; right:0; height:100vh; width:20rem; max-width:88vw; z-index:1050; transform:translateX(100%); transition:transform 200ms ease;"
+>
+  <div class="h-full flex flex-col">
+    <div class="p-4 border-b border-base-300 flex items-center justify-between">
+      <h3 class="font-semibold">Graph Controls</h3>
+      <button type="button" id="graph-close-controls" class="btn btn-xs btn-ghost">Close</button>
+    </div>
+    <div class="p-4 space-y-5 overflow-y-auto">
+      <div>
+        <button type="button" id="graph-expand-hop" class="btn btn-sm btn-outline w-full">Expand 1 Hop</button>
+      </div>
+      <div>
+        <label class="label py-0"><span class="label-text text-xs">Max visible nodes</span></label>
+        <select id="graph-max-nodes" class="select select-sm select-bordered w-full mt-1">
+          <option value="50">50 nodes</option>
+          <option value="100">100 nodes</option>
+          <option value="200" selected>200 nodes</option>
+        </select>
+      </div>
+      <div>
+        <div class="text-xs mb-2">Visible relations</div>
+        <div class="space-y-2">
+          <label class="label cursor-pointer justify-start gap-2 py-0"><input class="checkbox checkbox-sm graph-rel-filter" type="checkbox" value="calls" checked><span>calls</span></label>
+          <label class="label cursor-pointer justify-start gap-2 py-0"><input class="checkbox checkbox-sm graph-rel-filter" type="checkbox" value="defines" checked><span>defines</span></label>
+          <label class="label cursor-pointer justify-start gap-2 py-0"><input class="checkbox checkbox-sm graph-rel-filter" type="checkbox" value="inherits" checked><span>inherits</span></label>
+          <label class="label cursor-pointer justify-start gap-2 py-0"><input class="checkbox checkbox-sm graph-rel-filter" type="checkbox" value="test_targets" checked><span>test_targets</span></label>
+          <label class="label cursor-pointer justify-start gap-2 py-0"><input class="checkbox checkbox-sm graph-rel-filter" type="checkbox" value="imports" checked><span>imports</span></label>
+        </div>
+      </div>
+    </div>
+  </div>
+</aside>
 {% endblock %}
 
 {% block scripts %}
 <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <script>
+  let codebaseGraphInstance = null;
+  let baseGraphElements = [];
+
   // Keep graph logic in dedicated functions so it can be moved to a static JS file later.
   function getGraphElementsFromJson() {
     const holder = document.getElementById("graph-elements-json");
@@ -28,17 +71,148 @@
     }
   }
 
+  function getSelectedRelationTypes() {
+    const boxes = document.querySelectorAll(".graph-rel-filter");
+    return Array.from(boxes).filter((box) => box.checked).map((box) => box.value);
+  }
+
+  function getMaxNodesValue() {
+    const sel = document.getElementById("graph-max-nodes");
+    const v = sel ? parseInt(sel.value, 10) : 200;
+    if (Number.isNaN(v)) return 200;
+    return Math.max(50, Math.min(300, v));
+  }
+
+  function applyGraphControls() {
+    if (!codebaseGraphInstance) return;
+    const allowedRelations = new Set(getSelectedRelationTypes());
+    const maxNodes = getMaxNodesValue();
+    const nodes = codebaseGraphInstance.nodes();
+    const edges = codebaseGraphInstance.edges();
+
+    edges.forEach((e) => {
+      const r = e.data("relation") || e.data("relation_type") || "imports";
+      if (allowedRelations.has(r)) {
+        e.style("display", "element");
+      } else {
+        e.style("display", "none");
+      }
+    });
+
+    nodes.forEach((n, idx) => {
+      if (idx < maxNodes) {
+        n.style("display", "element");
+      } else {
+        n.style("display", "none");
+      }
+    });
+
+    // Hide edges whose nodes are hidden.
+    edges.forEach((e) => {
+      if (e.style("display") === "none") return;
+      const srcVisible = e.source().style("display") !== "none";
+      const tgtVisible = e.target().style("display") !== "none";
+      if (!srcVisible || !tgtVisible) {
+        e.style("display", "none");
+      }
+    });
+
+    codebaseGraphInstance.fit(codebaseGraphInstance.elements(":visible"), 24);
+  }
+
+  async function expandGraphOneHop() {
+    if (!codebaseGraphInstance) return;
+    const projectId = (document.getElementById("graph-project-id") || {}).value || "";
+    const expandUrl = (document.getElementById("graph-expand-url") || {}).value || "";
+    if (!projectId || !expandUrl) return;
+
+    const visibleNodeIds = codebaseGraphInstance.nodes(":visible").map((n) => n.id());
+    if (!visibleNodeIds.length) return;
+    const rels = getSelectedRelationTypes();
+    const maxNodes = getMaxNodesValue();
+
+    const params = new URLSearchParams();
+    params.set("project_id", projectId);
+    params.set("visible_node_ids", visibleNodeIds.join(","));
+    params.set("relation_types", rels.join(","));
+    params.set("max_nodes", String(maxNodes));
+
+    const response = await fetch(expandUrl + "?" + params.toString(), { method: "GET" });
+    if (!response.ok) return;
+    const payload = await response.json();
+    const elements = Array.isArray(payload.elements) ? payload.elements : [];
+    if (!elements.length) return;
+
+    const existingIds = new Set(codebaseGraphInstance.elements().map((ele) => ele.id()));
+    const toAdd = elements.filter((el) => {
+      const data = (el || {}).data || {};
+      const id = data.id;
+      if (!id) return false;
+      return !existingIds.has(id);
+    });
+    if (toAdd.length) {
+      codebaseGraphInstance.add(toAdd);
+    }
+    applyGraphControls();
+  }
+
+  function wireGraphControls() {
+    const drawer = document.getElementById("graph-controls-drawer");
+    const backdrop = document.getElementById("graph-drawer-backdrop");
+    const openBtn = document.getElementById("graph-open-controls");
+    const closeBtn = document.getElementById("graph-close-controls");
+    const closeDrawer = function () {
+      if (drawer) drawer.style.transform = "translateX(100%)";
+      if (backdrop) backdrop.style.display = "none";
+    };
+    const openDrawer = function () {
+      if (drawer) drawer.style.transform = "translateX(0)";
+      if (backdrop) backdrop.style.display = "block";
+    };
+    if (openBtn) openBtn.addEventListener("click", openDrawer);
+    if (closeBtn) closeBtn.addEventListener("click", closeDrawer);
+    if (backdrop) backdrop.addEventListener("click", closeDrawer);
+
+    const maxSel = document.getElementById("graph-max-nodes");
+    if (maxSel) {
+      maxSel.addEventListener("change", applyGraphControls);
+    }
+    document.querySelectorAll(".graph-rel-filter").forEach((box) => {
+      box.addEventListener("change", applyGraphControls);
+    });
+    const expandBtn = document.getElementById("graph-expand-hop");
+    if (expandBtn) {
+      expandBtn.addEventListener("click", expandGraphOneHop);
+    }
+  }
+
   function getNodeColor(nodeType) {
     if (nodeType === "file") return "#60a5fa";
+    if (nodeType === "class") return "#34d399";
+    if (nodeType === "function" || nodeType === "method") return "#a78bfa";
     return "#a78bfa";
   }
 
   function renderCodebaseGraph() {
     const container = document.getElementById("codebase-graph-canvas");
+    const emptyState = document.getElementById("graph-empty-state");
     if (!container || typeof cytoscape === "undefined") return;
 
     const elements = getGraphElementsFromJson();
-    cytoscape({
+    baseGraphElements = elements;
+    if (!elements.length) {
+      if (emptyState) emptyState.classList.remove("hidden");
+      container.classList.add("hidden");
+      return;
+    }
+    if (emptyState) emptyState.classList.add("hidden");
+    container.classList.remove("hidden");
+    if (codebaseGraphInstance) {
+      codebaseGraphInstance.destroy();
+      codebaseGraphInstance = null;
+    }
+
+    codebaseGraphInstance = cytoscape({
       container: container,
       elements: elements,
       style: [
@@ -50,7 +224,8 @@
             "color": "#e5e7eb",
             "font-size": "10px",
             "text-wrap": "wrap",
-            "text-max-width": "120px",
+            "text-max-width": "90px",
+            "text-overflow-wrap": "anywhere",
             "text-valign": "center",
             "text-halign": "center",
             "width": 34,
@@ -61,11 +236,63 @@
           selector: "edge",
           style: {
             "curve-style": "bezier",
-            "line-color": "#6b7280",
-            "target-arrow-color": "#6b7280",
+            "line-color": "#9ca3af",
+            "target-arrow-color": "#9ca3af",
             "target-arrow-shape": "triangle",
             "arrow-scale": 0.7,
-            "width": 1.5,
+            "width": 1.4,
+            "line-style": "solid",
+            "opacity": 0.9,
+          }
+        },
+        {
+          selector: "edge[relation = 'calls'], edge[relation_type = 'calls']",
+          style: {
+            "line-color": "#93c5fd",
+            "target-arrow-color": "#93c5fd",
+            "target-arrow-shape": "triangle",
+            "width": 2.2,
+            "line-style": "solid",
+          }
+        },
+        {
+          selector: "edge[relation = 'defines'], edge[relation_type = 'defines']",
+          style: {
+            "line-color": "#6ee7b7",
+            "target-arrow-color": "#6ee7b7",
+            "target-arrow-shape": "vee",
+            "width": 2.0,
+            "line-style": "solid",
+          }
+        },
+        {
+          selector: "edge[relation = 'inherits'], edge[relation_type = 'inherits']",
+          style: {
+            "line-color": "#fca5a5",
+            "target-arrow-color": "#fca5a5",
+            "target-arrow-shape": "triangle-backcurve",
+            "width": 2.0,
+            "line-style": "dashed",
+          }
+        },
+        {
+          selector: "edge[relation = 'test_targets'], edge[relation_type = 'test_targets']",
+          style: {
+            "line-color": "#f9a8d4",
+            "target-arrow-color": "#f9a8d4",
+            "target-arrow-shape": "diamond",
+            "width": 2.0,
+            "line-style": "dotted",
+          }
+        },
+        {
+          selector: "edge[relation = 'imports'], edge[relation_type = 'imports']",
+          style: {
+            "line-color": "#9ca3af",
+            "target-arrow-color": "#9ca3af",
+            "target-arrow-shape": "chevron",
+            "width": 1.4,
+            "line-style": "solid",
           }
         }
       ],
@@ -76,6 +303,27 @@
         padding: 24,
       }
     });
+    wireGraphControls();
+    applyGraphControls();
+  }
+
+  function resetCodebaseGraph() {
+    if (!codebaseGraphInstance) return;
+    // Clear any transient element state overrides from interactions.
+    codebaseGraphInstance.nodes().removeClass("selected highlighted faded");
+    codebaseGraphInstance.edges().removeClass("selected highlighted faded");
+
+    const layout = codebaseGraphInstance.layout({
+      name: "cose",
+      animate: false,
+      fit: true,
+      padding: 24,
+    });
+    layout.run();
+    codebaseGraphInstance.fit(undefined, 24);
+    codebaseGraphInstance.zoom(1);
+    codebaseGraphInstance.center();
+    applyGraphControls();
   }
 
   document.addEventListener("DOMContentLoaded", renderCodebaseGraph);
