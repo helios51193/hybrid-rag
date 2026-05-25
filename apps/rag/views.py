@@ -307,14 +307,41 @@ def _qa_history_from_conversation(conversation: Conversation | None) -> list[dic
             pending_question = msg.content
             continue
         if msg.role == ConversationMessage.Role.ASSISTANT:
+            trace = msg.trace_json or {}
             history.append(
                 {
                     "question": pending_question or "",
                     "answer": msg.content,
+                    "assistant_message_id": msg.id,
+                    "has_graph_snapshot": bool(trace.get("graph_elements")),
                 }
             )
             pending_question = None
     return history
+
+
+def _resolve_graph_for_message(
+    *,
+    project_id: str,
+    assistant_message: ConversationMessage | None,
+) -> tuple[list[dict], list[dict]]:
+    if assistant_message is None:
+        return [], []
+
+    citations = list(assistant_message.citations_json or [])
+    trace = assistant_message.trace_json or {}
+    traced = trace.get("graph_elements")
+    if isinstance(traced, list) and traced:
+        return traced, citations
+
+    graph_elements = _build_query_subgraph_elements(
+        project_id=project_id,
+        citations=citations,
+        max_nodes=120,
+        allowed_relations={"calls", "defines", "inherits", "test_targets", "imports"},
+        hops=1,
+    )
+    return graph_elements, citations
 
 
 @require_GET
@@ -524,8 +551,6 @@ def query_page(request: HttpRequest) -> HttpResponse:
     if selected_conversation is None:
         return HttpResponse("Conversation not found for this project", status=404)
 
-    # First load intentionally keeps graph empty to avoid rendering huge codebases.
-    graph_elements: list[dict] = []
     full_graph_elements = _get_cached_graph_elements(selected_project_id) if selected_project_id else []
     graph_node_count = sum(1 for e in full_graph_elements if "source" not in (e.get("data") or {}))
     graph_edge_count = sum(1 for e in full_graph_elements if "source" in (e.get("data") or {}))
@@ -533,13 +558,16 @@ def query_page(request: HttpRequest) -> HttpResponse:
     last_assistant = selected_conversation.messages.filter(
         role=ConversationMessage.Role.ASSISTANT
     ).order_by("-created_at").first()
-    citations = list(last_assistant.citations_json) if last_assistant else []
+    graph_elements, citations = _resolve_graph_for_message(
+        project_id=selected_project_id,
+        assistant_message=last_assistant,
+    )
 
     context = {
         "selected_repo_id": selected_repo_id,
         "selected_project_id": selected_project_id,
         "graph_elements_json": json.dumps(graph_elements),
-        "graph_is_empty_state": True,
+        "graph_is_empty_state": False if graph_elements else True,
         "graph_node_count": graph_node_count,
         "graph_edge_count": graph_edge_count,
         "citations": citations,
@@ -614,13 +642,14 @@ def query_run(request: HttpRequest) -> HttpResponse:
         role=ConversationMessage.Role.USER,
         content=query_text,
     )
-    ConversationMessage.objects.create(
+    assistant_message = ConversationMessage.objects.create(
         conversation=conversation,
         role=ConversationMessage.Role.ASSISTANT,
         content=answer_text,
         citations_json=selected_citations,
         trace_json={
             "hit_count": len(hits),
+            "graph_or_hybrid_hit_count": sum(1 for h in hits if h.source in {"graph", "hybrid"}),
             "answer_contract": answer_result.to_trace() if answer_result else {
                 "contract_version": "v1",
                 "backend": getattr(settings, "RAG_ANSWER_BACKEND", "fallback"),
@@ -643,6 +672,10 @@ def query_run(request: HttpRequest) -> HttpResponse:
         allowed_relations={"calls", "defines", "inherits", "test_targets", "imports"},
         hops=1,
     )
+    trace = dict(assistant_message.trace_json or {})
+    trace["graph_elements"] = graph_elements
+    assistant_message.trace_json = trace
+    assistant_message.save(update_fields=["trace_json"])
 
     conversation_rows = _list_conversations(project_id)
     qa_history = _qa_history_from_conversation(conversation)
@@ -657,6 +690,54 @@ def query_run(request: HttpRequest) -> HttpResponse:
         "graph_edge_count": graph_edge_count,
         "citations": selected_citations,
         "qa_history": qa_history,
+    }
+    return render(request, "rag/components/query_workspace.jinja", context)
+
+
+@require_GET
+def query_turn(request: HttpRequest) -> HttpResponse:
+    repo_id = (request.GET.get("repo_id") or "").strip()
+    project_id = (request.GET.get("project_id") or "").strip()
+    conversation_id = (request.GET.get("conversation_id") or "").strip()
+    message_id = (request.GET.get("message_id") or "").strip()
+    if not (project_id and conversation_id.isdigit() and message_id.isdigit()):
+        return HttpResponse("project_id, conversation_id and message_id are required", status=400)
+
+    conversation = Conversation.objects.filter(
+        id=int(conversation_id),
+        project_id=project_id,
+        is_archived=False,
+    ).first()
+    if conversation is None:
+        return HttpResponse("Conversation not found", status=404)
+
+    assistant_message = ConversationMessage.objects.filter(
+        id=int(message_id),
+        conversation=conversation,
+        role=ConversationMessage.Role.ASSISTANT,
+    ).first()
+    if assistant_message is None:
+        return HttpResponse("Assistant message not found", status=404)
+
+    full_graph_elements = _get_cached_graph_elements(project_id)
+    graph_node_count = sum(1 for e in full_graph_elements if "source" not in (e.get("data") or {}))
+    graph_edge_count = sum(1 for e in full_graph_elements if "source" in (e.get("data") or {}))
+    graph_elements, citations = _resolve_graph_for_message(
+        project_id=project_id,
+        assistant_message=assistant_message,
+    )
+
+    context = {
+        "selected_project_id": project_id,
+        "selected_repo_id": int(repo_id) if repo_id.isdigit() else None,
+        "conversation_rows": _list_conversations(project_id),
+        "selected_conversation_id": conversation.id,
+        "graph_elements_json": json.dumps(graph_elements),
+        "graph_is_empty_state": False if graph_elements else True,
+        "graph_node_count": graph_node_count,
+        "graph_edge_count": graph_edge_count,
+        "citations": citations,
+        "qa_history": _qa_history_from_conversation(conversation),
     }
     return render(request, "rag/components/query_workspace.jinja", context)
 

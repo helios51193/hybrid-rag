@@ -64,6 +64,10 @@ The system should ingest a codebase and answer natural-language questions with g
   - `deterministic` (default fallback for tests/dev)
   - `sentence_transformers`
   - `openai`
+- Embedding service now supports in-process model/client caching:
+  - `RAG_EMBEDDING_CACHE_ENABLED`
+  - `RAG_EMBEDDING_CACHE_MAX_MODELS`
+  - `RAG_EMBEDDING_DEVICE`
 - Qdrant repository implemented for:
   - collection connect/create
   - chunk upsert with payload metadata
@@ -121,7 +125,10 @@ The system should ingest a codebase and answer natural-language questions with g
 - Added minimal hybrid retrieval pipeline:
   - vector retrieval from Qdrant by `project_id`
   - graph-based related-file expansion from persisted `CodeEdge`
-  - hybrid score merge/ranking
+  - dual retrieval merge:
+    - seed vector hits
+    - graph-expanded path retrieval hits
+  - hybrid score merge/ranking with dedupe
   - context + citation assembly
   - grounded answer synthesis with backend routing (`fallback` | `openai`)
 - Added model-aware Qdrant collection naming based on embedding backend/model fingerprint.
@@ -157,6 +164,11 @@ The system should ingest a codebase and answer natural-language questions with g
   - distinct colors
   - distinct line styles
   - distinct arrow shapes by relation type
+- Added citation "View All" modal with scrollable long lists.
+- Added per-assistant-turn graph history support:
+  - graph snapshot persisted in assistant `trace_json`
+  - refresh restores latest answer graph
+  - per-answer "View This Graph" action loads historical graph + citations
 
 ### Conversation Flow (v1)
 
@@ -220,6 +232,20 @@ The system should ingest a codebase and answer natural-language questions with g
   - max item selection
   - citation score rounding/shape
 
+- `apps/rag/tests/test_services_embeddings.py`
+  - sentence-transformer caching enabled/disabled behavior
+
+- `apps/rag/tests/test_services_hybrid_search.py`
+  - dual retrieval includes graph-path candidates
+  - duplicate merge keeps stronger candidate
+
+- `apps/rag/tests/test_services_retrieval.py`
+  - path-based retrieval filtering/query behavior
+
+- `apps/rag/tests/test_views_query_graph_history.py`
+  - latest graph restore on query page
+  - historical turn graph load via `query_turn`
+
 ## Notable Fixes During Development
 
 - Switched ingestion tests to `TemporaryDirectory` for safe isolation.
@@ -228,8 +254,8 @@ The system should ingest a codebase and answer natural-language questions with g
 
 ## Immediate Next Steps
 
-1. Add integration tests for conversation/query views (`query_home`, `query_start`, `query_page`, `query_run`, `query_graph_expand`).
-2. Add tests for Qdrant repository query/filter/delete behavior (including missing collection fallback).
-3. Add tests for graph repository save/load behavior and relation distribution sanity.
-4. Tune hybrid retrieval scoring using relation-type weights and hub penalties.
-5. Add retrieval debug/inspection panel (vector hits, graph-expanded nodes, final context set).
+1. Add tests for Qdrant repository query/filter/delete behavior (including missing collection fallback).
+2. Add tests for graph repository save/load behavior and relation distribution sanity.
+3. Tune dual-retrieval scoring using relation-type weights and hub penalties.
+4. Add retrieval debug/inspection panel (seed vector hits vs graph-path hits vs final contexts).
+5. Add optional model warmup command for embedding cold-start elimination before first query.

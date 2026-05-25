@@ -37,3 +37,37 @@ def vector_retrieve(
         )
         for h in hits
     ]
+
+
+def vector_retrieve_for_paths(
+    *,
+    project_id: str,
+    query_text: str,
+    paths: list[str],
+    vector_repo: QdrantRepository,
+    per_path_k: int = 2,
+) -> list[RetrievalHit]:
+    if not paths:
+        return []
+
+    query_vector = embed_texts([query_text])[0]
+    all_hits: list[RetrievalHit] = []
+    for path in paths:
+        path = (path or "").strip()
+        if not path:
+            continue
+        hits = vector_repo.query(
+            query_vector=query_vector,
+            top_k=per_path_k,
+            where={"project_id": project_id, "relative_path": path},
+        )
+        for h in hits:
+            all_hits.append(
+                RetrievalHit(
+                    chunk_id=h.chunk_id,
+                    score=h.score,
+                    metadata=h.metadata,
+                    content=h.content,
+                )
+            )
+    return all_hits

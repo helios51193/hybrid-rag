@@ -1,231 +1,125 @@
-# Hybrid RAG for Code Intelligence
+# Hybrid RAG Flow (Current)
 
-## What This Project Does
+## Objective
 
-This project builds a **hybrid retrieval-augmented generation (RAG)** system for source code.
+Build a code-intelligence assistant that answers natural-language questions over a repository using:
 
-Given a codebase, it:
-
-1. indexes code chunks into a vector database (ChromaDB),
-2. builds a structural graph of code relationships (NetworkX),
-3. answers natural language questions using both semantic and graph-aware retrieval,
-4. returns grounded citations to files and line ranges.
-
-The goal is to make unfamiliar codebases easier to understand and query.
+- Vector retrieval (Qdrant)
+- Graph retrieval (NetworkX graph persisted in SQLite models)
+- Grounded answer synthesis with citations
 
 ---
 
-## Why Hybrid RAG
+## Runtime Components
 
-Vector search is strong at semantic similarity, but weak at structural reasoning.
-Graph search is strong at structural relationships, but weak at semantic intent.
-
-This project combines both:
-
-- **Vector retrieval** finds semantically relevant code.
-- **Graph expansion** pulls related implementation context (imports/references/neighbors).
-- **Hybrid scoring** improves relevance and reduces missed context.
-
----
-
-## Scope (Portfolio v1)
-
-- Ingest a local repository.
-- Chunk and embed source code.
-- Store embeddings in ChromaDB.
-- Build a code relationship graph with NetworkX.
-- Execute hybrid retrieval for NL queries.
-- Generate answers with citations.
-
-Out of scope for v1:
-
-- Production multi-tenant infra
-- Advanced incremental indexing
-- Deep language-specific static analysis across many languages
+- Ingestion: `apps/rag/services/ingestion.py`
+- Chunking: `apps/rag/services/chunking.py`
+- Embeddings: `apps/rag/services/embeddings.py`
+- Vector store: `apps/rag/repositories/qdrant_repository.py`
+- Graph build: `apps/rag/services/graph_build.py`
+- Graph persistence: `apps/rag/repositories/graph_repository.py`
+- Retrieval:
+  - `apps/rag/services/retrieval.py`
+  - `apps/rag/services/graph_query.py`
+  - `apps/rag/services/hybrid_search.py`
+- Context assembly: `apps/rag/services/context_builder.py`
+- Answer synthesis: `apps/rag/services/answering.py`
+- Query views/UI: `apps/rag/views.py`, `apps/rag/templates/rag/...`
 
 ---
 
-## Architecture (Current)
+## Indexing Flow
 
-Single Django app: `apps/rag`
-
-Main boundaries:
-
-- `services/ingestion.py`: file discovery and extraction
-- `services/chunking.py`: chunk creation + metadata
-- `services/embeddings.py`: embedding generation
-- `services/indexing.py`: indexing orchestration
-- `repositories/chroma_repository.py`: vector persistence/retrieval
-- `services/graph_build.py`: graph construction
-- `services/graph_query.py`: neighborhood/path retrieval
-- `repositories/graph_repository.py`: graph operations
-- `services/hybrid_search.py`: vector + graph merge
-- `services/rerank.py`: candidate scoring
-- `services/context_builder.py`: final context assembly
-- `services/answering.py`: answer + citations formatting
-- `views.py` + templates: user interaction
+1. Collect source documents from uploaded zip/folder.
+2. Chunk each document into deterministic line-based segments.
+3. Embed chunks using configured backend (`deterministic` | `sentence_transformers` | `openai`).
+4. Upsert vectors to Qdrant (model-aware collection naming).
+5. Build code graph with relation types:
+   - `imports`, `test_targets`, `defines`, `calls`, `inherits`
+6. Persist graph snapshot into `CodeNode`/`CodeEdge`.
+7. Save indexing stats to `IndexingJob`.
 
 ---
 
-## End-to-End Flow
+## Query Flow (Dual Retrieval)
 
-1. **Ingest**
-- Read code files from configured project path.
-- Apply include/exclude rules.
-- Skip binary/unsupported files.
-
-2. **Chunk**
-- Split files into deterministic chunks.
-- Attach metadata (path, language, line range, symbol when available).
-
-3. **Embed + Index**
-- Generate embeddings for chunks.
-- Upsert vectors + metadata into ChromaDB.
-
-4. **Build Graph**
-- Create nodes for files/symbols (v1 can start file-level only).
-- Add edges such as `imports` / `references`.
-
-5. **Retrieve (Hybrid)**
-- Run vector top-k search.
-- Expand from top results in graph (neighbors / hop-based expansion).
-- Merge candidates.
-
-6. **Rerank**
-- Compute final score from semantic + graph signals.
-- Select top contexts under token budget.
-
-7. **Answer**
-- Build response from selected contexts.
-- Return citations (file + line range) for concrete claims.
+1. User submits `query_text` in conversation page.
+2. Vector seed retrieval:
+   - Retrieve top-k chunks from Qdrant for `project_id`.
+3. Graph expansion:
+   - Expand related file/symbol paths from `CodeEdge` using relation filtering.
+4. Graph-path retrieval:
+   - Query Qdrant again for expanded paths (`relative_path` filtered).
+5. Merge + rank:
+   - Combine seed vector hits and graph-path hits.
+   - Deduplicate by `chunk_id`.
+   - Use hybrid scoring to rank final candidates.
+6. Build contexts + citations.
+7. Generate answer (`fallback` or `openai`) with output contract.
+8. Persist conversation turn:
+   - user message
+   - assistant message with citations
+   - trace payload (includes answer contract and graph snapshot)
+9. Return updated workspace (conversation, graph, citations) via HTMX partial.
 
 ---
 
-## Contracts
+## Graph UI Flow
 
-## Query Input
-
-- `project_id`
-- `query_text`
-- `top_k` (default: 10)
-- `graph_hops` (default: 1)
-- `debug` (default: false)
-
-## Query Output
-
-- `answer`
-- `citations[]`
-- `contexts[]`
-- `debug` (optional retrieval trace)
-
-Citation fields:
-
-- `file_path`
-- `start_line`
-- `end_line`
-- `chunk_id`
-- `score`
-- `retrieval_source` (`vector`, `graph`, `hybrid`)
+1. On first query page open:
+   - Use latest assistant-turn graph snapshot if present.
+2. On each new assistant response:
+   - Save query-scoped graph elements in assistant `trace_json`.
+3. User can select historical answer:
+   - `View This Graph` loads that turn’s graph + citations (`query_turn` endpoint).
+4. Graph controls:
+   - off-canvas drawer
+   - relation filters
+   - max visible node cap
+   - one-hop expansion
 
 ---
 
-## Metadata Schema (Chunk)
+## Citation Flow
 
-- `chunk_id`
-- `project_id`
-- `repo_snapshot_id` (or commit hash when available)
-- `file_path`
-- `language`
-- `symbol_name` (nullable)
-- `symbol_kind` (nullable)
-- `start_line`
-- `end_line`
-- `chunk_type`
-- `content_hash`
-- `indexed_at`
+1. Context builder returns top citations with `file_path`, `line range`, `score`, `retrieval_source`.
+2. Citation panel shows compact list.
+3. `View All` opens modal with scrollable full citation list.
 
 ---
 
-## Hybrid Scoring (v1)
+## Key Settings
 
-Initial weighted scoring:
-
-`final_score = 0.75 * vector_score + 0.25 * graph_score`
-
-Where:
-
-- `vector_score`: normalized embedding similarity
-- `graph_score`: neighborhood/path-based relevance heuristic
-
-This weighting is intentionally simple and easy to explain, then tune.
-
----
-
-## Design Tradeoffs I Chose
-
-1. **Single Django app first**
-- Faster iteration, less overhead, clearer ownership for solo development.
-
-2. **Simple graph semantics in v1**
-- Start with file-level relationships before complex call graphs.
-
-3. **Deterministic chunking over aggressive optimization**
-- Better reproducibility for debugging and evaluation.
-
-4. **Debuggability as a feature**
-- Retrieval traces and citations are first-class for learning and trust.
+- Embedding backend/model:
+  - `RAG_EMBEDDING_BACKEND`
+  - `RAG_EMBEDDING_MODEL`
+- Embedding cache/cold-start controls:
+  - `RAG_EMBEDDING_CACHE_ENABLED`
+  - `RAG_EMBEDDING_CACHE_MAX_MODELS`
+  - `RAG_EMBEDDING_DEVICE`
+- Answer synthesis:
+  - `RAG_ANSWER_BACKEND`
+  - `RAG_ANSWER_MODEL`
+  - `RAG_ANSWER_TEMPERATURE`
+- Qdrant:
+  - `RAG_VECTOR_COLLECTION`
+  - `QDRANT_URL`
+  - `QDRANT_API_KEY`
 
 ---
 
-## How To Run Demo (Planned UX)
+## Current Strengths
 
-1. Open RAG page.
-2. Register/select a local project path.
-3. Trigger indexing.
-4. Wait for indexing status to complete.
-5. Ask a natural language question.
-6. Review answer and citations.
-
-Demo success criteria:
-
-- Answer references correct files.
-- Citations are traceable and meaningful.
-- Hybrid retrieval surfaces context vector-only misses.
+- End-to-end indexing + query loop is functional.
+- True dual retrieval (vector seeds + graph-path retrieval) is implemented.
+- Conversation persistence includes per-turn graph/citation traceability.
+- UI supports historical graph inspection per assistant turn.
 
 ---
 
-## Quality & Evaluation
+## Current Gaps / Next Targets
 
-Portfolio-level evaluation focus:
-
-- Retrieval relevance on a fixed query set
-- Citation correctness (file + line accuracy)
-- Response groundedness (low hallucination)
-- Latency for small/medium repos
-
-Planned tests:
-
-- Unit: chunking, graph edge extraction, reranking
-- Integration: Chroma and graph repositories
-- E2E smoke: index tiny repo -> query -> expected citation present
-
----
-
-## Known Limitations (v1)
-
-- Graph quality depends on lightweight parsing heuristics.
-- Cross-language deep symbol resolution is limited.
-- Large repository indexing performance is not fully optimized.
-- Answer quality depends on embedding model and prompt strategy.
-
----
-
-## Next Iterations
-
-1. Incremental indexing by file hash changes.
-2. Better symbol extraction and richer graph edges.
-3. Query-time intent classification for retrieval strategy selection.
-4. Evaluation harness with benchmark questions and scoring.
-5. Async indexing pipeline and progress streaming UX.
-
----
+1. Add stronger retrieval trace panel (seed hits vs graph hits contribution).
+2. Improve hybrid score calibration with relation weights and hub penalties.
+3. Add Qdrant + graph repository deeper integration tests.
+4. Add embedding warmup command for first-query latency elimination.

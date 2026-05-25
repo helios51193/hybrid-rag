@@ -182,6 +182,11 @@ LOGIN_URL = '/auth/login/'
 # - "openai" (remote API)
 RAG_EMBEDDING_BACKEND = os.getenv("RAG_EMBEDDING_BACKEND", "deterministic")
 RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-3-small")
+# Keep embedding model/client hot in-process to reduce cold start per request.
+RAG_EMBEDDING_CACHE_ENABLED = os.getenv("RAG_EMBEDDING_CACHE_ENABLED", "1") == "1"
+RAG_EMBEDDING_CACHE_MAX_MODELS = int(os.getenv("RAG_EMBEDDING_CACHE_MAX_MODELS", "2"))
+# Optional device hint for sentence-transformers (e.g. "cpu", "cuda").
+RAG_EMBEDDING_DEVICE = os.getenv("RAG_EMBEDDING_DEVICE", "cpu")
 
 
 # RAG Answer Generation

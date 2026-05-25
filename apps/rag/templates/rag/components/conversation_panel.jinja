@@ -10,7 +10,20 @@
             <div class="chat-bubble chat-bubble-primary whitespace-pre-wrap">{{ item.question }}</div>
           </div>
           <div class="chat chat-start">
-            <div class="chat-bubble chat-bubble-neutral whitespace-pre-wrap">{{ item.answer }}</div>
+            <div class="space-y-1 max-w-[90%]">
+              <div class="chat-bubble chat-bubble-neutral whitespace-pre-wrap">{{ item.answer }}</div>
+              {% if item.assistant_message_id %}
+                <button
+                  type="button"
+                  class="btn btn-xs btn-outline"
+                  hx-get="{{ url('rag:query_turn') }}?repo_id={{ selected_repo_id if selected_repo_id else '' }}&project_id={{ selected_project_id }}&conversation_id={{ selected_conversation_id }}&message_id={{ item.assistant_message_id }}"
+                  hx-target="#query-dynamic-workspace"
+                  hx-swap="innerHTML"
+                >
+                  View This Graph
+                </button>
+              {% endif %}
+            </div>
           </div>
         {% endfor %}
       {% else %}

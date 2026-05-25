@@ -2,21 +2,65 @@
   <div class="card-body p-3 h-full min-h-0 min-w-0 overflow-hidden">
     <div class="flex items-center justify-between">
       <h2 class="card-title text-base">Citations</h2>
-      <button class="btn btn-xs btn-ghost">View All</button>
+      {% if citations %}
+        <button
+          type="button"
+          class="btn btn-xs btn-ghost"
+          onclick="document.getElementById('citations-modal').showModal()"
+        >
+          View All
+        </button>
+      {% else %}
+        <button type="button" class="btn btn-xs btn-ghost" disabled>View All</button>
+      {% endif %}
     </div>
     <div class="divider my-1"></div>
 
     {% if citations %}
       <div class="space-y-2 overflow-y-auto min-h-0 h-full pr-1 overflow-x-hidden">
-        {% for citation in citations %}
+        {% for citation in citations[:5] %}
           <div class="rounded-box border border-base-300 p-2 min-w-0">
             <div class="text-sm font-medium break-all">{{ citation.file_path }}</div>
             <div class="text-xs text-base-content/70">
               Line {{ citation.start_line }}-{{ citation.end_line }}
+              {% if citation.score is defined %} - score {{ citation.score }}{% endif %}
             </div>
           </div>
         {% endfor %}
       </div>
+
+      <dialog id="citations-modal" class="modal">
+        <div class="modal-box max-w-3xl">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold text-lg">All Citations</h3>
+            <form method="dialog">
+              <button class="btn btn-sm btn-ghost" aria-label="Close">X</button>
+            </form>
+          </div>
+
+          <div class="max-h-[65vh] overflow-y-auto space-y-2 pr-1">
+            {% for citation in citations %}
+              <div class="rounded-box border border-base-300 p-3 min-w-0">
+                <div class="text-sm font-semibold break-all">{{ citation.file_path }}</div>
+                <div class="text-xs text-base-content/70 mt-1">
+                  Line {{ citation.start_line }}-{{ citation.end_line }}
+                  {% if citation.score is defined %} - score {{ citation.score }}{% endif %}
+                  {% if citation.retrieval_source is defined %} - source {{ citation.retrieval_source }}{% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="modal-action">
+            <form method="dialog">
+              <button class="btn">Close</button>
+            </form>
+          </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
     {% else %}
       <div class="alert alert-info overflow-y-auto">
         <span>No citations yet. Run a query to populate this panel.</span>

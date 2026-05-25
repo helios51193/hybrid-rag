@@ -16,8 +16,12 @@ def expand_related_files(
     *,
     project_id: str,
     seed_hits: list[RetrievalHit],
-    per_seed_limit: int = 6,
+    per_seed_limit: int = 8,
+    allowed_relations: set[str] | None = None,
 ) -> list[GraphExpandedFile]:
+    if allowed_relations is None:
+        allowed_relations = {"calls", "defines", "inherits", "test_targets", "imports"}
+
     seed_paths = {
         str(hit.metadata.get("relative_path", "")).strip()
         for hit in seed_hits
@@ -30,15 +34,18 @@ def expand_related_files(
     for seed in seed_paths:
         edges = (
             CodeEdge.objects.filter(project_id=project_id, source_node_id=seed)
-            .order_by("id")[:per_seed_limit]
+            .order_by("-weight", "id")[:per_seed_limit]
         )
         for edge in edges:
             if edge.target_node_id == seed:
                 continue
-            # Simple v1 graph score: reciprocal of local rank.
-            rank_score = 1.0
+            if edge.relation not in allowed_relations:
+                continue
+
+            # Relation-weighted graph score.
+            relation_weight = float(edge.weight or 0.5)
             existing = expanded.get(edge.target_node_id, 0.0)
-            expanded[edge.target_node_id] = max(existing, rank_score)
+            expanded[edge.target_node_id] = max(existing, relation_weight)
 
     return [
         GraphExpandedFile(file_path=path, graph_score=score)
