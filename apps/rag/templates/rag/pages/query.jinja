@@ -29,9 +29,6 @@
     </div>
     <div class="p-4 space-y-5 overflow-y-auto">
       <div>
-        <button type="button" id="graph-expand-hop" class="btn btn-sm btn-outline w-full">Expand 1 Hop</button>
-      </div>
-      <div>
         <label class="label py-0"><span class="label-text text-xs">Max visible nodes</span></label>
         <select id="graph-max-nodes" class="select select-sm select-bordered w-full mt-1">
           <option value="50">50 nodes</option>
@@ -52,6 +49,30 @@
     </div>
   </div>
 </aside>
+
+<dialog id="explainability-modal" class="modal">
+  <div class="modal-box max-w-7xl w-[95vw]">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="font-semibold text-lg">Retrieval Explainability</h3>
+      <form method="dialog">
+        <button class="btn btn-sm btn-ghost" aria-label="Close">X</button>
+      </form>
+    </div>
+    <div id="explainability-modal-content">
+      <div class="alert alert-info">
+        <span>Select an answer and click Explainability to load trace details.</span>
+      </div>
+    </div>
+    <div class="modal-action">
+      <form method="dialog">
+        <button class="btn">Close</button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
 {% endblock %}
 
 {% block scripts %}
@@ -120,42 +141,6 @@
     codebaseGraphInstance.fit(codebaseGraphInstance.elements(":visible"), 24);
   }
 
-  async function expandGraphOneHop() {
-    if (!codebaseGraphInstance) return;
-    const projectId = (document.getElementById("graph-project-id") || {}).value || "";
-    const expandUrl = (document.getElementById("graph-expand-url") || {}).value || "";
-    if (!projectId || !expandUrl) return;
-
-    const visibleNodeIds = codebaseGraphInstance.nodes(":visible").map((n) => n.id());
-    if (!visibleNodeIds.length) return;
-    const rels = getSelectedRelationTypes();
-    const maxNodes = getMaxNodesValue();
-
-    const params = new URLSearchParams();
-    params.set("project_id", projectId);
-    params.set("visible_node_ids", visibleNodeIds.join(","));
-    params.set("relation_types", rels.join(","));
-    params.set("max_nodes", String(maxNodes));
-
-    const response = await fetch(expandUrl + "?" + params.toString(), { method: "GET" });
-    if (!response.ok) return;
-    const payload = await response.json();
-    const elements = Array.isArray(payload.elements) ? payload.elements : [];
-    if (!elements.length) return;
-
-    const existingIds = new Set(codebaseGraphInstance.elements().map((ele) => ele.id()));
-    const toAdd = elements.filter((el) => {
-      const data = (el || {}).data || {};
-      const id = data.id;
-      if (!id) return false;
-      return !existingIds.has(id);
-    });
-    if (toAdd.length) {
-      codebaseGraphInstance.add(toAdd);
-    }
-    applyGraphControls();
-  }
-
   function wireGraphControls() {
     const drawer = document.getElementById("graph-controls-drawer");
     const backdrop = document.getElementById("graph-drawer-backdrop");
@@ -180,10 +165,6 @@
     document.querySelectorAll(".graph-rel-filter").forEach((box) => {
       box.addEventListener("change", applyGraphControls);
     });
-    const expandBtn = document.getElementById("graph-expand-hop");
-    if (expandBtn) {
-      expandBtn.addEventListener("click", expandGraphOneHop);
-    }
   }
 
   function getNodeColor(nodeType) {

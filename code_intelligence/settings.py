@@ -172,7 +172,33 @@ NPM_BIN_PATH = os.getenv("NPM_BIN_PATH")
 #LOGGING
 LOG_DIR = BASE_DIR / "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
-
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+        "rag_tasks_file": {
+            "class": "logging.FileHandler",
+            "filename": str(LOG_DIR / "rag_tasks.log"),
+            "formatter": "standard",
+        },
+    },
+    "loggers": {
+        "apps.rag.tasks.indexing_tasks": {
+            "handlers": ["console", "rag_tasks_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
 LOGIN_URL = '/auth/login/'
 
 # RAG Embeddings
@@ -222,3 +248,15 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+
+# Celery / indexing task resilience knobs
+RAG_INDEXING_MAX_RETRIES = int(os.getenv("RAG_INDEXING_MAX_RETRIES", "3"))
+RAG_INDEXING_RETRY_BACKOFF_SECONDS = int(os.getenv("RAG_INDEXING_RETRY_BACKOFF_SECONDS", "30"))
+RAG_INDEXING_RETRY_BACKOFF_MAX_SECONDS = int(os.getenv("RAG_INDEXING_RETRY_BACKOFF_MAX_SECONDS", "600"))
+RAG_INDEXING_RETRY_JITTER_SECONDS = int(os.getenv("RAG_INDEXING_RETRY_JITTER_SECONDS", "10"))
+
+RAG_INDEXING_TASK_SOFT_TIME_LIMIT = int(os.getenv("RAG_INDEXING_TASK_SOFT_TIME_LIMIT", "3000"))  # 50m
+RAG_INDEXING_TASK_TIME_LIMIT = int(os.getenv("RAG_INDEXING_TASK_TIME_LIMIT", "3600"))  # 60m
+
+# Optional: retry on timeout
+RAG_INDEXING_RETRY_ON_SOFT_TIMEOUT = os.getenv("RAG_INDEXING_RETRY_ON_SOFT_TIMEOUT", "0") == "1"

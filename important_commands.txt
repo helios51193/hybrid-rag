@@ -1,2 +1,5 @@
 # run celery locally, make sure redis is available 
 celery -A code_intelligence worker -l info -P solo
+
+# running eval harness
+python manage.py rag_eval --project-id <your_project_id>

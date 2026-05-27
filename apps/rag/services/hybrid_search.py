@@ -17,6 +17,58 @@ class HybridHit:
     source: str  # vector | graph | hybrid
 
 
+def _query_tokens(query_text: str) -> set[str]:
+    raw = (query_text or "").lower()
+    return {t for t in raw.replace("?", " ").replace(",", " ").replace("-", " ").split() if t}
+
+
+def _path_tokens(relative_path: str) -> set[str]:
+    p = (relative_path or "").lower().replace("\\", "/")
+    for ch in [".", "_", "-", "/"]:
+        p = p.replace(ch, " ")
+    return {t for t in p.split() if t}
+
+
+def _intent_path_boost(query_text: str, relative_path: str) -> float:
+    """
+    Lightweight repository-agnostic path/query heuristics.
+    Intentionally avoids library-specific hardcoded paths.
+    """
+    tokens = _query_tokens(query_text)
+    path = (relative_path or "").lower().replace("\\", "/")
+    p_tokens = _path_tokens(path)
+    boost = 0.0
+
+    # Semantic overlap between query words and path words.
+    overlap = len(tokens & p_tokens)
+    if overlap > 0:
+        boost += min(0.2, 0.03 * overlap)
+
+    # Encourage implementation locations for "where implemented/defined/handled" queries.
+    implementation_intent = {"implemented", "implementation", "defined", "definition", "handled", "located", "where"}
+    if tokens & implementation_intent:
+        if "/tests/" in path or "/test/" in path:
+            boost -= 0.08
+        if "/docs/" in path or "/doc/" in path or "/examples/" in path or "/example/" in path:
+            boost -= 0.12
+
+    # Tests intent should prefer tests.
+    test_intent = {"test", "tests", "tested", "testing", "coverage"}
+    if tokens & test_intent:
+        if "/tests/" in path or "/test/" in path:
+            boost += 0.14
+        else:
+            boost -= 0.03
+
+    # API/definition intent: prefer common source folders over docs/examples.
+    api_intent = {"class", "function", "method", "api", "definition", "define"}
+    if tokens & api_intent:
+        if "/src/" in path or "/lib/" in path or "/core/" in path:
+            boost += 0.05
+
+    return max(-0.2, min(0.25, boost))
+
+
 def run_hybrid_search(
     *,
     project_id: str,
@@ -52,7 +104,7 @@ def run_hybrid_search(
     for vh in seed_hits:
         path = str(vh.metadata.get("relative_path", "")).strip()
         graph_bonus = float(graph_scores_by_path.get(path, 0.0))
-        score = (0.75 * vh.score) + (0.25 * graph_bonus)
+        score = (0.75 * vh.score) + (0.25 * graph_bonus) + _intent_path_boost(query_text, path)
         merged[vh.chunk_id] = HybridHit(
             chunk_id=vh.chunk_id,
             score=score,
@@ -65,7 +117,7 @@ def run_hybrid_search(
     for gh in graph_path_hits:
         path = str(gh.metadata.get("relative_path", "")).strip()
         gscore = float(graph_scores_by_path.get(path, 0.0))
-        score = (0.55 * gh.score) + (0.45 * gscore)
+        score = (0.55 * gh.score) + (0.45 * gscore) + _intent_path_boost(query_text, path)
         existing = merged.get(gh.chunk_id)
         candidate = HybridHit(
             chunk_id=gh.chunk_id,

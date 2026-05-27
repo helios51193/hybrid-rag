@@ -21,7 +21,6 @@
     </div>
 
     <input type="hidden" id="graph-project-id" value="{{ selected_project_id if selected_project_id else '' }}">
-    <input type="hidden" id="graph-expand-url" value="{{ url('rag:query_graph_expand') }}">
     <script id="graph-elements-json" type="application/json">{{ graph_elements_json | safe }}</script>
     <div id="graph-empty-state" class="alert alert-info mb-2 {{ '' if graph_is_empty_state else 'hidden' }}">
       <span>Run a query to visualize a focused subgraph.</span>

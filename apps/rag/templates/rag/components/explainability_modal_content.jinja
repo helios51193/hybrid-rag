@@ -1,0 +1,89 @@
+<div class="space-y-4">
+  <div class="stats stats-vertical lg:stats-horizontal shadow w-full">
+    <div class="stat">
+      <div class="stat-title">Assistant Message ID</div>
+      <div class="stat-value text-lg">{{ assistant_message_id }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Final Retrieved Hits</div>
+      <div class="stat-value text-lg">{{ hit_count }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Graph/Hybrid Hits</div>
+      <div class="stat-value text-lg">{{ graph_or_hybrid_hit_count }}</div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+    <div class="card bg-base-200">
+      <div class="card-body p-3">
+        <h4 class="font-semibold">Answer Contract</h4>
+        <div class="text-sm">
+          <div>Backend: <span class="font-medium">{{ answer_contract.backend if answer_contract else "N/A" }}</span></div>
+          <div>Status: <span class="font-medium">{{ answer_contract.status if answer_contract else "N/A" }}</span></div>
+          <div>Version: <span class="font-medium">{{ answer_contract.contract_version if answer_contract else "N/A" }}</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card bg-base-200">
+      <div class="card-body p-3">
+        <h4 class="font-semibold">Retrieval Mix</h4>
+        <div class="text-sm">
+          <div>Vector-only hits: <span class="font-medium">{{ retrieval_trace.vector_like_count if retrieval_trace else 0 }}</span></div>
+          <div>Graph/Hybrid hits: <span class="font-medium">{{ retrieval_trace.graph_or_hybrid_count if retrieval_trace else 0 }}</span></div>
+          <div>Total in trace: <span class="font-medium">{{ retrieval_trace.final_hit_count if retrieval_trace else 0 }}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card bg-base-200">
+    <div class="card-body p-3">
+      <h4 class="font-semibold mb-2">Final Ranked Retrieval Hits</h4>
+      {% if final_hits %}
+        <div class="max-h-[38vh] overflow-y-auto space-y-2 pr-1">
+          {% for hit in final_hits %}
+            <div class="rounded-box border border-base-300 p-3">
+              <div class="flex flex-wrap items-center gap-2 mb-1">
+                <span class="badge badge-outline">#{{ loop.index }}</span>
+                <span class="badge badge-outline">{{ hit.source }}</span>
+                <span class="badge badge-outline">score {{ hit.score }}</span>
+                <span class="badge badge-outline">lines {{ hit.start_line }}-{{ hit.end_line }}</span>
+              </div>
+              <div class="text-sm font-medium break-all">{{ hit.file_path }}</div>
+              <div class="text-xs text-base-content/70 break-all mt-1">chunk {{ hit.chunk_id }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="alert alert-warning">
+          <span>No retrieval trace rows were saved for this answer.</span>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card bg-base-200">
+    <div class="card-body p-3">
+      <h4 class="font-semibold mb-2">Citations Used by Answer</h4>
+      {% if citations %}
+        <div class="max-h-[24vh] overflow-y-auto space-y-2">
+          {% for c in citations %}
+            <div class="rounded-box border border-base-300 p-2">
+              <div class="text-sm font-medium break-all">{{ c.file_path }}</div>
+              <div class="text-xs text-base-content/70">
+                Line {{ c.start_line }}-{{ c.end_line }}
+                {% if c.score is defined %} - score {{ c.score }}{% endif %}
+                {% if c.retrieval_source is defined %} - source {{ c.retrieval_source }}{% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="alert alert-info">
+          <span>No citations available for this answer.</span>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>

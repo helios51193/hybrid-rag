@@ -8,9 +8,10 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.cache import cache
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from apps.rag.forms import RepositoryInputForm
@@ -650,6 +651,22 @@ def query_run(request: HttpRequest) -> HttpResponse:
         trace_json={
             "hit_count": len(hits),
             "graph_or_hybrid_hit_count": sum(1 for h in hits if h.source in {"graph", "hybrid"}),
+            "retrieval_trace": {
+                "final_hits": [
+                    {
+                        "chunk_id": h.chunk_id,
+                        "file_path": str(h.metadata.get("relative_path", "")),
+                        "start_line": int(h.metadata.get("start_line", 0) or 0),
+                        "end_line": int(h.metadata.get("end_line", 0) or 0),
+                        "score": round(float(h.score), 4),
+                        "source": h.source,
+                    }
+                    for h in hits[:20]
+                ],
+                "final_hit_count": len(hits),
+                "vector_like_count": sum(1 for h in hits if h.source == "vector"),
+                "graph_or_hybrid_count": sum(1 for h in hits if h.source in {"graph", "hybrid"}),
+            },
             "answer_contract": answer_result.to_trace() if answer_result else {
                 "contract_version": "v1",
                 "backend": getattr(settings, "RAG_ANSWER_BACKEND", "fallback"),
@@ -692,6 +709,46 @@ def query_run(request: HttpRequest) -> HttpResponse:
         "qa_history": qa_history,
     }
     return render(request, "rag/components/query_workspace.jinja", context)
+
+
+@require_GET
+def query_explainability(request: HttpRequest) -> HttpResponse:
+    project_id = (request.GET.get("project_id") or "").strip()
+    conversation_id = (request.GET.get("conversation_id") or "").strip()
+    message_id = (request.GET.get("message_id") or "").strip()
+    if not (project_id and conversation_id.isdigit() and message_id.isdigit()):
+        return HttpResponse("project_id, conversation_id and message_id are required", status=400)
+
+    conversation = Conversation.objects.filter(
+        id=int(conversation_id),
+        project_id=project_id,
+        is_archived=False,
+    ).first()
+    if conversation is None:
+        return HttpResponse("Conversation not found", status=404)
+
+    assistant_message = ConversationMessage.objects.filter(
+        id=int(message_id),
+        conversation=conversation,
+        role=ConversationMessage.Role.ASSISTANT,
+    ).first()
+    if assistant_message is None:
+        return HttpResponse("Assistant message not found", status=404)
+
+    trace = assistant_message.trace_json or {}
+    retrieval_trace = trace.get("retrieval_trace") or {}
+    final_hits = retrieval_trace.get("final_hits") or []
+    context = {
+        "assistant_message_id": assistant_message.id,
+        "answer_text": assistant_message.content,
+        "citations": list(assistant_message.citations_json or []),
+        "hit_count": int(trace.get("hit_count", 0) or 0),
+        "graph_or_hybrid_hit_count": int(trace.get("graph_or_hybrid_hit_count", 0) or 0),
+        "answer_contract": trace.get("answer_contract") or {},
+        "retrieval_trace": retrieval_trace,
+        "final_hits": final_hits,
+    }
+    return render(request, "rag/components/explainability_modal_content.jinja", context)
 
 
 @require_GET
@@ -743,70 +800,6 @@ def query_turn(request: HttpRequest) -> HttpResponse:
 
 
 @require_GET
-def query_graph_expand(request: HttpRequest) -> HttpResponse:
-    project_id = (request.GET.get("project_id") or "").strip()
-    if not project_id:
-        return HttpResponse("project_id is required", status=400)
-
-    visible_ids = {
-        x.strip()
-        for x in (request.GET.get("visible_node_ids") or "").split(",")
-        if x.strip()
-    }
-    relation_types = {
-        x.strip()
-        for x in (request.GET.get("relation_types") or "").split(",")
-        if x.strip()
-    }
-    if not relation_types:
-        relation_types = {"calls", "defines", "inherits", "test_targets", "imports"}
-
-    try:
-        max_nodes = int(request.GET.get("max_nodes") or "120")
-    except ValueError:
-        max_nodes = 120
-    max_nodes = max(20, min(max_nodes, 300))
-
-    all_elements = _get_cached_graph_elements(project_id)
-    nodes_by_id, _edges, out_edges, in_edges = _split_graph_elements(all_elements)
-    if not visible_ids:
-        payload = {"elements": []}
-        return HttpResponse(json.dumps(payload), content_type="application/json")
-
-    selected_nodes: set[str] = set(visible_ids)
-    selected_edges: list[dict] = []
-    for nid in list(visible_ids):
-        for edge in out_edges.get(nid, []) + in_edges.get(nid, []):
-            data = edge.get("data") or {}
-            relation = str(data.get("relation", data.get("relation_type", "imports")))
-            if relation not in relation_types:
-                continue
-            source = str(data.get("source", ""))
-            target = str(data.get("target", ""))
-            if source and len(selected_nodes) < max_nodes:
-                selected_nodes.add(source)
-            if target and len(selected_nodes) < max_nodes:
-                selected_nodes.add(target)
-            selected_edges.append(edge)
-            if len(selected_nodes) >= max_nodes:
-                break
-        if len(selected_nodes) >= max_nodes:
-            break
-
-    node_items = [nodes_by_id[nid] for nid in sorted(selected_nodes) if nid in nodes_by_id]
-    edge_items = []
-    for edge in selected_edges:
-        data = edge.get("data") or {}
-        source = str(data.get("source", ""))
-        target = str(data.get("target", ""))
-        if source in selected_nodes and target in selected_nodes:
-            edge_items.append(edge)
-
-    payload = {"elements": node_items + edge_items}
-    return HttpResponse(json.dumps(payload), content_type="application/json")
-
-
-@require_GET
 def repository_status_row(request: HttpRequest, repo_id: int) -> HttpResponse:
     """
     Poll endpoint for HTMX to refresh one row status.
@@ -822,3 +815,21 @@ def repository_status_row(request: HttpRequest, repo_id: int) -> HttpResponse:
         "source_dir": job.source_dir,
     }
     return render(request, "rag/components/repository_row.jinja", {"repo": row})
+
+
+@require_GET
+def metrics_indexing(request: HttpRequest) -> JsonResponse:
+    keys = [
+        "rag:metrics:indexing:started",
+        "rag:metrics:indexing:success",
+        "rag:metrics:indexing:failed",
+        "rag:metrics:indexing:retried",
+        "rag:metrics:indexing:soft_timeout",
+    ]
+    metrics = {k: int(cache.get(k, 0) or 0) for k in keys}
+    return JsonResponse(
+        {
+            "metrics": metrics,
+            "generated_at": timezone.now().isoformat(),
+        }
+    )

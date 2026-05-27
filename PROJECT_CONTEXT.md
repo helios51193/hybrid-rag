@@ -131,6 +131,7 @@ The system should ingest a codebase and answer natural-language questions with g
   - hybrid score merge/ranking with dedupe
   - context + citation assembly
   - grounded answer synthesis with backend routing (`fallback` | `openai`)
+- Added generalized query-intent path boosting in hybrid scoring (repository-agnostic heuristics).
 - Added model-aware Qdrant collection naming based on embedding backend/model fingerprint.
 - Added missing-collection-safe query/delete behavior in Qdrant repository.
 - Query submit button now disables and shows loader during HTMX request.
@@ -159,7 +160,6 @@ The system should ingest a codebase and answer natural-language questions with g
 - Added graph controls drawer (off-canvas overlay) with:
   - max visible node cap
   - relation visibility toggles
-  - expand-one-hop action
 - Added node/edge legends and relation-specific edge styling in Cytoscape:
   - distinct colors
   - distinct line styles
@@ -169,6 +169,25 @@ The system should ingest a codebase and answer natural-language questions with g
   - graph snapshot persisted in assistant `trace_json`
   - refresh restores latest answer graph
   - per-answer "View This Graph" action loads historical graph + citations
+
+### Explainability + Evaluation (v1)
+
+- Added per-answer explainability modal launched from conversation items.
+- Explainability data is loaded via HTMX partial from `query_explainability` endpoint.
+- Assistant `trace_json` now stores retrieval trace summary:
+  - final ranked hits
+  - source mix (vector vs graph/hybrid)
+  - answer contract snapshot
+- Added evaluation harness:
+  - `apps/rag/eval/eval_set.json` for benchmark queries
+  - `manage.py rag_eval` command for retrieval benchmarking
+  - optional `--warmup` mode to reduce cold-start latency distortion
+- Eval output includes:
+  - `file_hit_rate_at_k`
+  - `mean_file_recall_at_k`
+  - `symbol_hit_rate_at_k`
+  - `mean_graph_or_hybrid_ratio`
+  - latency distribution (`p50`, `p95`, `mean`, `max`)
 
 ### Conversation Flow (v1)
 
@@ -256,6 +275,6 @@ The system should ingest a codebase and answer natural-language questions with g
 
 1. Add tests for Qdrant repository query/filter/delete behavior (including missing collection fallback).
 2. Add tests for graph repository save/load behavior and relation distribution sanity.
-3. Tune dual-retrieval scoring using relation-type weights and hub penalties.
-4. Add retrieval debug/inspection panel (seed vector hits vs graph-path hits vs final contexts).
+3. Add eval run comparison utility (`baseline vs candidate`) with delta reporting.
+4. Tune dual-retrieval scoring using relation-type weights and hub penalties.
 5. Add optional model warmup command for embedding cold-start elimination before first query.
