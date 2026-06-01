@@ -187,7 +187,11 @@ The system should ingest a codebase and answer natural-language questions with g
   - `mean_file_recall_at_k`
   - `symbol_hit_rate_at_k`
   - `mean_graph_or_hybrid_ratio`
+  - `graph_helped_hit_rate_at_k` (queries where graph/hybrid hits succeeded while pure vector hits did not)
   - latency distribution (`p50`, `p95`, `mean`, `max`)
+- Added eval comparison utility:
+  - `manage.py rag_eval_compare --baseline <json> --candidate <json>`
+  - aggregate delta summary + per-query improvement/regression listing
 
 ### Conversation Flow (v1)
 
@@ -275,6 +279,6 @@ The system should ingest a codebase and answer natural-language questions with g
 
 1. Add tests for Qdrant repository query/filter/delete behavior (including missing collection fallback).
 2. Add tests for graph repository save/load behavior and relation distribution sanity.
-3. Add eval run comparison utility (`baseline vs candidate`) with delta reporting.
-4. Tune dual-retrieval scoring using relation-type weights and hub penalties.
+3. Tune dual-retrieval scoring incrementally and keep `rag_eval_compare` as a guardrail for regressions.
+4. Add optional local LLM backend path (OpenAI-compatible base URL) for offline generation runs.
 5. Add optional model warmup command for embedding cold-start elimination before first query.

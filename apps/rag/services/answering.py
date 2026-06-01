@@ -100,8 +100,17 @@ def _openai_answer(query_text: str, contexts: list[str], citations: list[dict]) 
 
     if not contexts:
         return _fallback_answer(query_text=query_text, contexts=contexts, citations=citations)
+    
 
-    client = OpenAI(api_key=getattr(settings, "OPENAI_API_KEY", None))
+    base_url = getattr(settings, "RAG_ANSWER_BASE_URL", "").strip() or None
+    api_key = getattr(settings, "RAG_ANSWER_API_KEY", None) or "local-dev-key"
+    
+    client = None
+    if base_url:
+        client = OpenAI(base_url=base_url, api_key=api_key)
+    else:
+        client = OpenAI(api_key=getattr(settings, "OPENAI_API_KEY", None))
+
     model = getattr(settings, "RAG_ANSWER_MODEL", "gpt-4.1-mini")
     temperature = float(getattr(settings, "RAG_ANSWER_TEMPERATURE", 0.1))
 

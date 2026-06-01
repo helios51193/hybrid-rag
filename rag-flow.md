@@ -108,8 +108,12 @@ Build a code-intelligence assistant that answers natural-language questions over
    - file recall@k
    - symbol hit@k
    - graph/hybrid contribution ratio
+   - graph-helped hit-rate@k
    - latency (`p50`, `p95`, `mean`, `max`)
 4. Results are written to `logs/eval/*.json`.
+5. Compare runs:
+   - `python manage.py rag_eval_compare --baseline <baseline.json> --candidate <candidate.json>`
+   - Use this as a regression gate before accepting retrieval-score changes.
 
 ---
 
@@ -146,6 +150,6 @@ Build a code-intelligence assistant that answers natural-language questions over
 ## Current Gaps / Next Targets
 
 1. Add deeper Qdrant + graph repository integration tests.
-2. Add eval comparison command to track metric deltas across runs.
-3. Tune hybrid score calibration with relation weights and hub penalties.
+2. Tune hybrid score calibration in small steps with eval-compare guardrails.
+3. Add local LLM backend support for answer generation (OpenAI-compatible endpoint).
 4. Add optional model warmup command to preload embedding model before first user query.

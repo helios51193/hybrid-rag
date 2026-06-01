@@ -2,13 +2,8 @@
   {
     "id": "q1_shortest_path",
     "query": "where is shortest path implemented?",
-    "expected_files": [
-      "networkx/algorithms/shortest_paths/generic.py"
-    ],
-    "expected_symbols": [
-      "shortest_path",
-      "all_shortest_paths"
-    ],
+    "expected_files": ["networkx/algorithms/shortest_paths/generic.py"],
+    "expected_symbols": ["shortest_path", "all_shortest_paths"],
     "notes": "accept generic shortest path entrypoints",
     "difficulty": "easy"
   },
@@ -16,14 +11,8 @@
   {
     "id": "q2_pagerank",
     "query": "where is pagerank implemented?",
-    "expected_files": [
-      "networkx/algorithms/link_analysis/pagerank_alg.py"
-    ],
-    "expected_symbols": [
-      "pagerank",
-      "_pagerank_python",
-      "google_matrix"
-    ],
+    "expected_files": ["networkx/algorithms/link_analysis/pagerank_alg.py"],
+    "expected_symbols": ["pagerank", "_pagerank_python", "google_matrix"],
     "notes": "accept scipy-backed implementation references",
     "difficulty": "easy"
   },
@@ -31,9 +20,7 @@
   {
     "id": "q3_connected_components",
     "query": "where are connected components implemented?",
-    "expected_files": [
-      "networkx/algorithms/components/connected.py"
-    ],
+    "expected_files": ["networkx/algorithms/components/connected.py"],
     "expected_symbols": [
       "connected_components",
       "number_connected_components",
@@ -46,12 +33,8 @@
   {
     "id": "q4_graph_class",
     "query": "where is the Graph class defined?",
-    "expected_files": [
-      "networkx/classes/graph.py"
-    ],
-    "expected_symbols": [
-      "Graph"
-    ],
+    "expected_files": ["networkx/classes/graph.py"],
+    "expected_symbols": ["Graph"],
     "notes": "must identify Graph class",
     "difficulty": "easy"
   },
@@ -63,10 +46,7 @@
       "networkx/drawing/nx_pylab.py",
       "networkx/drawing/__init__.py"
     ],
-    "expected_symbols": [
-      "draw",
-      "draw_networkx"
-    ],
+    "expected_symbols": ["draw", "draw_networkx"],
     "notes": "accept export layer or actual implementation",
     "difficulty": "medium"
   },
@@ -74,14 +54,8 @@
   {
     "id": "q6_bfs",
     "query": "where is breadth first search implemented?",
-    "expected_files": [
-      "networkx/algorithms/traversal/breadth_first_search.py"
-    ],
-    "expected_symbols": [
-      "bfs_edges",
-      "bfs_tree",
-      "bfs_successors"
-    ],
+    "expected_files": ["networkx/algorithms/traversal/breadth_first_search.py"],
+    "expected_symbols": ["bfs_edges", "bfs_tree", "bfs_successors"],
     "notes": "BFS traversal functions",
     "difficulty": "easy"
   },
@@ -89,14 +63,8 @@
   {
     "id": "q7_dfs",
     "query": "where is depth first search implemented?",
-    "expected_files": [
-      "networkx/algorithms/traversal/depth_first_search.py"
-    ],
-    "expected_symbols": [
-      "dfs_edges",
-      "dfs_tree",
-      "dfs_preorder_nodes"
-    ],
+    "expected_files": ["networkx/algorithms/traversal/depth_first_search.py"],
+    "expected_symbols": ["dfs_edges", "dfs_tree", "dfs_preorder_nodes"],
     "notes": "DFS traversal functions",
     "difficulty": "easy"
   },
@@ -104,14 +72,8 @@
   {
     "id": "q8_read_gml",
     "query": "where is GML parsing handled?",
-    "expected_files": [
-      "networkx/readwrite/gml.py"
-    ],
-    "expected_symbols": [
-      "read_gml",
-      "write_gml",
-      "parse_gml"
-    ],
+    "expected_files": ["networkx/readwrite/gml.py"],
+    "expected_symbols": ["read_gml", "write_gml", "parse_gml"],
     "notes": "reader and parser accepted",
     "difficulty": "medium"
   },
@@ -119,10 +81,7 @@
   {
     "id": "q9_graph_conversion",
     "query": "where are graph conversion utilities implemented?",
-    "expected_files": [
-      "networkx/convert.py",
-      "networkx/convert_matrix.py"
-    ],
+    "expected_files": ["networkx/convert.py", "networkx/convert_matrix.py"],
     "expected_symbols": [
       "to_networkx_graph",
       "from_numpy_array",
@@ -135,9 +94,7 @@
   {
     "id": "q10_random_graph",
     "query": "where are random graph generators implemented?",
-    "expected_files": [
-      "networkx/generators/random_graphs.py"
-    ],
+    "expected_files": ["networkx/generators/random_graphs.py"],
     "expected_symbols": [
       "erdos_renyi_graph",
       "fast_gnp_random_graph",
@@ -150,9 +107,7 @@
   {
     "id": "q11_centrality",
     "query": "where are centrality algorithms implemented?",
-    "expected_files": [
-      "networkx/algorithms/centrality"
-    ],
+    "expected_files": ["networkx/algorithms/centrality"],
     "expected_symbols": [
       "degree_centrality",
       "betweenness_centrality",
@@ -165,13 +120,8 @@
   {
     "id": "q12_graphml",
     "query": "where is GraphML support implemented?",
-    "expected_files": [
-      "networkx/readwrite/graphml.py"
-    ],
-    "expected_symbols": [
-      "read_graphml",
-      "write_graphml"
-    ],
+    "expected_files": ["networkx/readwrite/graphml.py"],
+    "expected_symbols": ["read_graphml", "write_graphml"],
     "notes": "reader and writer accepted",
     "difficulty": "medium"
   },
@@ -179,14 +129,8 @@
   {
     "id": "q13_cycle_detection",
     "query": "where is cycle detection implemented?",
-    "expected_files": [
-      "networkx/algorithms/cycles.py"
-    ],
-    "expected_symbols": [
-      "find_cycle",
-      "cycle_basis",
-      "simple_cycles"
-    ],
+    "expected_files": ["networkx/algorithms/cycles.py"],
+    "expected_symbols": ["find_cycle", "cycle_basis", "simple_cycles"],
     "notes": "cycle-related algorithms",
     "difficulty": "medium"
   },
@@ -194,9 +138,7 @@
   {
     "id": "q14_topological_sort",
     "query": "where is topological sort implemented?",
-    "expected_files": [
-      "networkx/algorithms/dag.py"
-    ],
+    "expected_files": ["networkx/algorithms/dag.py"],
     "expected_symbols": [
       "topological_sort",
       "lexicographical_topological_sort"
@@ -208,13 +150,8 @@
   {
     "id": "q15_community",
     "query": "where are community detection algorithms implemented?",
-    "expected_files": [
-      "networkx/algorithms/community"
-    ],
-    "expected_symbols": [
-      "louvain_communities",
-      "girvan_newman"
-    ],
+    "expected_files": ["networkx/algorithms/community"],
+    "expected_symbols": ["louvain_communities", "girvan_newman"],
     "notes": "community package accepted",
     "difficulty": "hard"
   },
@@ -226,9 +163,7 @@
       "networkx/classes/graph.py",
       "networkx/classes/digraph.py"
     ],
-    "expected_symbols": [
-      "is_directed"
-    ],
+    "expected_symbols": ["is_directed"],
     "notes": "accept Graph or DiGraph implementation",
     "difficulty": "hard"
   },
@@ -236,13 +171,8 @@
   {
     "id": "q17_weighted_algorithms",
     "query": "where are weighted shortest path algorithms implemented?",
-    "expected_files": [
-      "networkx/algorithms/shortest_paths/weighted.py"
-    ],
-    "expected_symbols": [
-      "dijkstra_path",
-      "bellman_ford_path"
-    ],
+    "expected_files": ["networkx/algorithms/shortest_paths/weighted.py"],
+    "expected_symbols": ["dijkstra_path", "bellman_ford_path"],
     "notes": "weighted algorithms",
     "difficulty": "medium"
   },
@@ -250,13 +180,8 @@
   {
     "id": "q18_layout",
     "query": "where are graph layout algorithms implemented?",
-    "expected_files": [
-      "networkx/drawing/layout.py"
-    ],
-    "expected_symbols": [
-      "spring_layout",
-      "circular_layout"
-    ],
+    "expected_files": ["networkx/drawing/layout.py"],
+    "expected_symbols": ["spring_layout", "circular_layout"],
     "notes": "layout engine",
     "difficulty": "medium"
   },
@@ -264,13 +189,8 @@
   {
     "id": "q19_json_support",
     "query": "where is json graph serialization implemented?",
-    "expected_files": [
-      "networkx/readwrite/json_graph"
-    ],
-    "expected_symbols": [
-      "node_link_data",
-      "adjacency_data"
-    ],
+    "expected_files": ["networkx/readwrite/json_graph"],
+    "expected_symbols": ["node_link_data", "adjacency_data"],
     "notes": "directory level accepted",
     "difficulty": "hard"
   },
@@ -278,11 +198,114 @@
   {
     "id": "q20_tests_shortest_path",
     "query": "where are shortest path algorithms tested?",
-    "expected_files": [
-      "networkx/algorithms/shortest_paths/tests"
-    ],
+    "expected_files": ["networkx/algorithms/shortest_paths/tests"],
     "expected_symbols": [],
     "notes": "test directories accepted",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q21_pagerank_flow",
+    "query": "explain the execution flow when nx.pagerank(G) is called",
+    "expected_files": ["networkx/algorithms/link_analysis/pagerank_alg.py"],
+    "expected_symbols": ["pagerank", "_pagerank_python", "google_matrix"],
+    "notes": "answer should identify pagerank entrypoint and downstream helper functions involved in rank computation",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q22_draw_flow",
+    "query": "trace what happens internally when nx.draw(G) is called",
+    "expected_files": [
+      "networkx/drawing/__init__.py",
+      "networkx/drawing/nx_pylab.py"
+    ],
+    "expected_symbols": ["draw", "draw_networkx"],
+    "notes": "answer should explain export layer and drawing implementation path",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q23_shortest_path_call_flow",
+    "query": "trace the call flow when shortest_path(G, source, target, weight='weight') is executed",
+    "expected_files": [
+      "networkx/algorithms/shortest_paths/generic.py",
+      "networkx/algorithms/shortest_paths/weighted.py"
+    ],
+    "expected_symbols": ["shortest_path", "dijkstra_path", "bellman_ford_path"],
+    "notes": "tests multi-hop from generic entrypoint to weighted implementation",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q24_json_node_link_roundtrip",
+    "query": "where is node-link json serialization and deserialization handled",
+    "expected_files": ["networkx/readwrite/json_graph/node_link.py"],
+    "expected_symbols": ["node_link_data", "node_link_graph"],
+    "notes": "specific readwrite submodule resolution",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q25_graphml_reader_writer_flow",
+    "query": "show the flow for reading and writing GraphML files",
+    "expected_files": ["networkx/readwrite/graphml.py"],
+    "expected_symbols": ["read_graphml", "write_graphml"],
+    "notes": "single-file but multi-symbol flow query",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q26_all_pairs_shortest_path_location",
+    "query": "where are all pairs shortest path algorithms implemented",
+    "expected_files": [
+      "networkx/algorithms/shortest_paths/unweighted.py",
+      "networkx/algorithms/shortest_paths/weighted.py"
+    ],
+    "expected_symbols": ["all_pairs_shortest_path", "all_pairs_dijkstra_path"],
+    "notes": "expects retrieving related modules under same domain",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q27_drawing_stack_flow",
+    "query": "what internal functions are involved when draw_networkx is called",
+    "expected_files": ["networkx/drawing/nx_pylab.py"],
+    "expected_symbols": [
+      "draw_networkx",
+      "draw_networkx_nodes",
+      "draw_networkx_edges",
+      "draw_networkx_labels"
+    ],
+    "notes": "tests deeper function-family retrieval",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q28_cycle_detection_dispatch",
+    "query": "where is directed vs undirected cycle detection logic implemented",
+    "expected_files": ["networkx/algorithms/cycles.py"],
+    "expected_symbols": ["find_cycle", "simple_cycles", "cycle_basis"],
+    "notes": "checks semantic retrieval around related cycle APIs",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q29_centrality_package_entrypoints",
+    "query": "which files define degree, betweenness, and closeness centrality entrypoints",
+    "expected_files": [
+      "networkx/algorithms/centrality/degree_alg.py",
+      "networkx/algorithms/centrality/betweenness.py",
+      "networkx/algorithms/centrality/closeness.py"
+    ],
+    "expected_symbols": [
+      "degree_centrality",
+      "betweenness_centrality",
+      "closeness_centrality"
+    ],
+    "notes": "multi-file concept query inside one package",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q30_topological_sort_dependency_flow",
+    "query": "trace dependencies used by topological_sort and lexicographical_topological_sort",
+    "expected_files": ["networkx/algorithms/dag.py"],
+    "expected_symbols": [
+      "topological_sort",
+      "lexicographical_topological_sort"
+    ],
+    "notes": "flow-style query for DAG ordering routines",
     "difficulty": "hard"
   }
 ]

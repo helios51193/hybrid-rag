@@ -220,6 +220,8 @@ RAG_EMBEDDING_DEVICE = os.getenv("RAG_EMBEDDING_DEVICE", "cpu")
 # - "fallback" (deterministic local response)
 # - "openai"
 RAG_ANSWER_BACKEND = os.getenv("RAG_ANSWER_BACKEND", "openai")
+RAG_ANSWER_BASE_URL = os.getenv("RAG_ANSWER_BASE_URL", "")
+RAG_ANSWER_API_KEY = os.getenv("RAG_ANSWER_API_KEY", "")
 RAG_ANSWER_MODEL = os.getenv("RAG_ANSWER_MODEL", "gpt-4.1-mini")
 RAG_ANSWER_TEMPERATURE = float(os.getenv("RAG_ANSWER_TEMPERATURE", "0.1"))
 OPENAI_API_KEY = os.getenv("OPEN_AI_KEY","")

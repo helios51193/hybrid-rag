@@ -31,6 +31,7 @@ class QueryEvalResult:
     file_recall_at_k: float
     symbol_hit_at_k: int
     graph_or_hybrid_ratio: float
+    graph_helped_hit_at_k: int
 
 
 def _normalize_path(value: str) -> str:
@@ -146,6 +147,7 @@ class Command(BaseCommand):
         total_file_hits = 0
         total_symbol_hits = 0
         total_graph_ratio = 0.0
+        total_graph_helped_hits = 0
 
         vector_repo.connect()
         try:
@@ -184,6 +186,16 @@ class Command(BaseCommand):
                     for c in built.citations
                     if str(c.get("file_path", "")).strip()
                 ]
+                vector_files = {
+                    _normalize_path(str(c.get("file_path", "")))
+                    for c in built.citations
+                    if str(c.get("retrieval_source", "")) == "vector" and str(c.get("file_path", "")).strip()
+                }
+                graph_or_hybrid_files = {
+                    _normalize_path(str(c.get("file_path", "")))
+                    for c in built.citations
+                    if str(c.get("retrieval_source", "")) in {"graph", "hybrid"} and str(c.get("file_path", "")).strip()
+                }
 
                 matched_expected = 0
                 for exp in expected_files:
@@ -197,10 +209,23 @@ class Command(BaseCommand):
                 graph_or_hybrid = sum(1 for c in built.citations if str(c.get("retrieval_source", "")) in {"graph", "hybrid"})
                 total_citations = max(1, len(built.citations))
                 graph_or_hybrid_ratio = round(graph_or_hybrid / total_citations, 4)
+                graph_helped_hit_at_k = 0
+                if expected_files:
+                    vector_matched = any(
+                        any(_file_match(exp, got) for got in vector_files)
+                        for exp in expected_files
+                    )
+                    graph_or_hybrid_matched = any(
+                        any(_file_match(exp, got) for got in graph_or_hybrid_files)
+                        for exp in expected_files
+                    )
+                    if graph_or_hybrid_matched and not vector_matched:
+                        graph_helped_hit_at_k = 1
 
                 total_file_hits += file_hit_at_k
                 total_symbol_hits += symbol_hit_at_k
                 total_graph_ratio += graph_or_hybrid_ratio
+                total_graph_helped_hits += graph_helped_hit_at_k
 
                 result = QueryEvalResult(
                     eval_id=eval_id,
@@ -215,12 +240,14 @@ class Command(BaseCommand):
                     file_recall_at_k=file_recall_at_k,
                     symbol_hit_at_k=symbol_hit_at_k,
                     graph_or_hybrid_ratio=graph_or_hybrid_ratio,
+                    graph_helped_hit_at_k=graph_helped_hit_at_k,
                 )
                 results.append(result)
 
                 self.stdout.write(
                     f"[{eval_id}] hit@{top_k}={file_hit_at_k} recall@{top_k}={file_recall_at_k} "
-                    f"symbol_hit={symbol_hit_at_k} graph_ratio={graph_or_hybrid_ratio} latency_ms={latency_ms}"
+                    f"symbol_hit={symbol_hit_at_k} graph_ratio={graph_or_hybrid_ratio} "
+                    f"graph_helped={graph_helped_hit_at_k} latency_ms={latency_ms}"
                 )
         finally:
             vector_repo.close()
@@ -235,6 +262,7 @@ class Command(BaseCommand):
             "mean_file_recall_at_k": round(sum(r.file_recall_at_k for r in results) / n, 4),
             "symbol_hit_rate_at_k": round(total_symbol_hits / n, 4),
             "mean_graph_or_hybrid_ratio": round(total_graph_ratio / n, 4),
+            "graph_helped_hit_rate_at_k": round(total_graph_helped_hits / n, 4),
             "latency_ms": {
                 "p50": round(median(latencies), 2),
                 "p95": round(sorted(latencies)[max(0, min(n - 1, int(0.95 * n) - 1))], 2),
@@ -268,4 +296,5 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"mean_file_recall@{top_k}: {aggregate['mean_file_recall_at_k']}"))
         self.stdout.write(self.style.SUCCESS(f"symbol_hit_rate@{top_k}: {aggregate['symbol_hit_rate_at_k']}"))
         self.stdout.write(self.style.SUCCESS(f"mean_graph_or_hybrid_ratio: {aggregate['mean_graph_or_hybrid_ratio']}"))
+        self.stdout.write(self.style.SUCCESS(f"graph_helped_hit_rate@{top_k}: {aggregate['graph_helped_hit_rate_at_k']}"))
         self.stdout.write(self.style.SUCCESS(f"latency p50/p95 ms: {aggregate['latency_ms']['p50']}/{aggregate['latency_ms']['p95']}"))
