@@ -29,9 +29,7 @@ A project that builds a hybrid retrieval system over source code using:
 
 Reference doc: [rag-flow.md](F:\Projects\django\codeintelligence\rag-flow.md)
 
-## UI Screenshots (Placeholders)
-
-Add real screenshots in this section later.
+## UI Screenshots
 
 ### Dashboard
 
