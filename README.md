@@ -1,6 +1,6 @@
 # CodeIntelligence: Hybrid RAG for Codebases
 
-A portfolio project that builds a hybrid retrieval system over source code using:
+A project that builds a hybrid retrieval system over source code using:
 
 - Django (app + SSR/HTMX UI)
 - Qdrant (vector retrieval)
